@@ -22,7 +22,7 @@ from model.utils.net_utils import _smooth_l1_loss, _crop_pool_layer, _affine_gri
 
 class _fasterRCNN(nn.Module):
     """ faster RCNN """
-    def __init__(self, classes, class_agnostic,lc,gc, la_attention = False, mid_attention = False):
+    def __init__(self, classes, class_agnostic,lc,gc, la_attention = False, mid_attention = False, target_num=1):
         super(_fasterRCNN, self).__init__()
         self.classes = classes
         self.n_classes = len(classes)
@@ -34,8 +34,14 @@ class _fasterRCNN(nn.Module):
         self.gc = gc
         self.la_attention = la_attention
         self.mid_attention = mid_attention
+        self.num_of_targets = target_num
+
         # define rpn
-        self.RCNN_rpn = _RPN(self.dout_base_model)
+        self.RCNN_rpns = []
+        for _ in range(target_num):
+            self.RCNN_rpns.append(_RPN(self.dout_base_model))
+        self.RCNN_rpns = nn.ModuleList(self.RCNN_rpns)
+
         self.RCNN_proposal_target = _ProposalTargetLayer(self.n_classes)
 
         # self.RCNN_roi_pool = _RoIPooling(cfg.POOLING_SIZE, cfg.POOLING_SIZE, 1.0/16.0)
@@ -47,7 +53,7 @@ class _fasterRCNN(nn.Module):
         # self.grid_size = cfg.POOLING_SIZE * 2 if cfg.CROP_RESIZE_WITH_MAX_POOL else cfg.POOLING_SIZE
         # self.RCNN_roi_crop = _RoICrop()
 
-    def forward(self, im_data, im_info, gt_boxes, num_boxes,target=False, target_num=0,eta=1.0, with_feat=False):
+    def forward(self, im_data, im_info, gt_boxes, num_boxes, target_num=0, target=False, eta=1.0, with_feat=False):
         batch_size = im_data.size(0)
 
         im_info = im_info.data
@@ -58,8 +64,6 @@ class _fasterRCNN(nn.Module):
         base_feat1 = self.RCNN_base1(im_data)
         if self.lc:
             d_pixel, _ = self.netD_pixel(grad_reverse(base_feat1, lambd=eta))
-            #print(d_pixel)
-            # if not target:
             _, feat_pixel = self.netD_pixel(base_feat1.detach())
         else:
             d_pixel = self.netD_pixel(grad_reverse(base_feat1, lambd=eta))
@@ -88,7 +92,7 @@ class _fasterRCNN(nn.Module):
             domain_p = self.netD(grad_reverse(base_feat, lambd=eta))
 
 
-        rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
+        rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpns[target_num](base_feat, im_info, gt_boxes, num_boxes)
 
         # if it is training phrase, then use ground trubut bboxes for refining
         if self.training and not target:
@@ -175,10 +179,10 @@ class _fasterRCNN(nn.Module):
             else:
                 m.weight.data.normal_(mean, stddev)
                 m.bias.data.zero_()
-
-        normal_init(self.RCNN_rpn.RPN_Conv, 0, 0.01, cfg.TRAIN.TRUNCATED)
-        normal_init(self.RCNN_rpn.RPN_cls_score, 0, 0.01, cfg.TRAIN.TRUNCATED)
-        normal_init(self.RCNN_rpn.RPN_bbox_pred, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        for i in range(self.num_of_targets):
+            normal_init(self.RCNN_rpns[i].RPN_Conv, 0, 0.01, cfg.TRAIN.TRUNCATED)
+            normal_init(self.RCNN_rpns[i].RPN_cls_score, 0, 0.01, cfg.TRAIN.TRUNCATED)
+            normal_init(self.RCNN_rpns[i].RPN_bbox_pred, 0, 0.01, cfg.TRAIN.TRUNCATED)
         normal_init(self.RCNN_cls_score, 0, 0.01, cfg.TRAIN.TRUNCATED)
         normal_init(self.RCNN_bbox_pred, 0, 0.001, cfg.TRAIN.TRUNCATED)
 

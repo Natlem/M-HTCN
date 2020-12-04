@@ -3,9 +3,6 @@
 # Licensed under The MIT License [see LICENSE for details]
 # Written by Xinlei Chen
 # --------------------------------------------------------
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import torch
 import torch.nn as nn
@@ -16,9 +13,12 @@ import torchvision.models as models
 from model.faster_rcnn.faster_rcnn import _fasterRCNN
 import pdb
 
+from model.utils.config import cfg
+
+
 class vgg16(_fasterRCNN):
   def __init__(self, classes, pretrained=False, class_agnostic=False):
-    self.model_path = 'data/pretrained_model/vgg16_caffe.pth'
+    self.model_path = cfg.VGG_PATH
     self.dout_base_model = 512
     self.pretrained = pretrained
     self.class_agnostic = class_agnostic

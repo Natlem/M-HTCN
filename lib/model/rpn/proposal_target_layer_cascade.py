@@ -84,7 +84,7 @@ class _ProposalTargetLayer(nn.Module):
             # assert clss[b].sum() > 0
             if clss[b].sum() == 0:
                 continue
-            inds = torch.nonzero(clss[b] > 0).view(-1)
+            inds = torch.nonzero(clss[b] > 0, as_tuple=False).view(-1)
             for i in range(inds.numel()):
                 ind = inds[i]
                 bbox_targets[b, ind, :] = bbox_target_data[b, ind, :]
@@ -139,12 +139,12 @@ class _ProposalTargetLayer(nn.Module):
         # foreground RoIs
         for i in range(batch_size):
 
-            fg_inds = torch.nonzero(max_overlaps[i] >= cfg.TRAIN.FG_THRESH).view(-1)
+            fg_inds = torch.nonzero(max_overlaps[i] >= cfg.TRAIN.FG_THRESH, as_tuple=False).view(-1)
             fg_num_rois = fg_inds.numel()
 
             # Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
             bg_inds = torch.nonzero((max_overlaps[i] < cfg.TRAIN.BG_THRESH_HI) &
-                                    (max_overlaps[i] >= cfg.TRAIN.BG_THRESH_LO)).view(-1)
+                                    (max_overlaps[i] >= cfg.TRAIN.BG_THRESH_LO), as_tuple=False).view(-1)
             bg_num_rois = bg_inds.numel()
 
             if fg_num_rois > 0 and bg_num_rois > 0:

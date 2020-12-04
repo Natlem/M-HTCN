@@ -6,7 +6,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import math
 import torchvision.models as models
-from model.faster_rcnn.faster_rcnn_HTCN import _fasterRCNN
+from model.faster_rcnn.faster_rcnn_HTCN_mrpn import _fasterRCNN
+
 
 from model.utils.config import cfg
 
@@ -156,16 +157,18 @@ class RandomLayer(nn.Module):
         self.random_matrix = [val.cuda() for val in self.random_matrix]
 
 class vgg16(_fasterRCNN):
-  def __init__(self, classes, pretrained=False, class_agnostic=False,lc=False,gc=False, la_attention = False, mid_attention = False, target_num=1):
+  def __init__(self, classes, pretrained=False, class_agnostic=False,lc=False,gc=False, la_attention = False, mid_attention = False, is_mtda=False, target_num=1):
     self.model_path = cfg.VGG_PATH
     self.dout_base_model = 512
     self.pretrained = pretrained
     self.class_agnostic = class_agnostic
     self.lc = lc
     self.gc = gc
-    self.target_num = target_num
+    self.target_num = 1
+    if is_mtda:
+        self.target_num = target_num
 
-    _fasterRCNN.__init__(self, classes, class_agnostic,lc,gc, la_attention, mid_attention)
+    _fasterRCNN.__init__(self, classes, class_agnostic,lc,gc, la_attention, mid_attention,target_num=target_num)
 
   def _init_modules(self):
     vgg = models.vgg16()

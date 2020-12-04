@@ -6,9 +6,6 @@
 # --------------------------------------------------------
 
 """Factory method for easily getting imdbs by name."""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 __sets = {}
 from datasets.pascal_voc import pascal_voc
@@ -18,6 +15,12 @@ from datasets.cityscape import cityscape
 from datasets.cityscape_car import cityscape_car
 from datasets.foggy_cityscape import foggy_cityscape
 from datasets.kitti_car import kitti_car
+from datasets.cityscape_watercolor_car import cityscape_watercolor_car
+from datasets.watercolor_car import watercolor_car
+from datasets.watercolor import watercolor
+from datasets.comic import comic
+from datasets.clipart import clipart
+from datasets.wildtrack_c import wildtrack
 
 import numpy as np
 
@@ -54,9 +57,40 @@ for year in ['2007']:
     __sets[name] = (lambda split=split: cityscape_car(split, year))
 
 for year in ['2007']:
-  for split in ['trainval', 'trainval_combine']:
+  for split in ['trainval', 'trainval_combine', 'train', 'val']:
     name = 'kitti_car_{}_{}'.format(year, split)
     __sets[name] = (lambda split=split: kitti_car(split, year))
+
+for year in ['2007']:
+  for split in ['train', 'val']:
+    name = 'cityscape_watercolor_car_{}_{}'.format(year, split)
+    __sets[name] = (lambda split=split: cityscape_watercolor_car(split, year))
+
+for year in ['2007']:
+  for split in ['train', 'val']:
+    name = 'watercolor_car_{}_{}'.format(year, split)
+    __sets[name] = (lambda split=split: watercolor_car(split, year))
+
+for year in ['2007']:
+  for split in ['train', 'val']:
+    name = 'watercolor_{}_{}'.format(year, split)
+    __sets[name] = (lambda split=split: watercolor(split, year))
+
+for year in ['2007']:
+  for split in ['train', 'val']:
+    name = 'clipart_{}_{}'.format(year, split)
+    __sets[name] = (lambda split=split: clipart(split, year))
+
+for year in ['2007']:
+  for split in ['train', 'val']:
+    name = 'comic_{}_{}'.format(year, split)
+    __sets[name] = (lambda split=split: comic(split, year))
+
+for camera in ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7']:
+  for split in ['trainval']:
+    name = 'wildtrack_{}_{}'.format(camera.lower(), split)
+    __sets[name] = (lambda split=split: wildtrack(split, camera))
+
 
 ###########################################
 

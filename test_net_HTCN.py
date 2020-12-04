@@ -1,7 +1,4 @@
 # --------------------------------------------------------
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import os
 import sys
@@ -48,6 +45,8 @@ if __name__ == '__main__':
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
   np.random.seed(cfg.RNG_SEED)
 
+  device = torch.device('cuda')
+
   if args.cfg_file is not None:
     cfg_from_file(args.cfg_file)
   if args.set_cfgs_target is not None:
@@ -91,23 +90,7 @@ if __name__ == '__main__':
 
   print('load model successfully!')
   # initilize the tensor holder here.
-  im_data = torch.FloatTensor(1)
-  im_info = torch.FloatTensor(1)
-  num_boxes = torch.LongTensor(1)
-  gt_boxes = torch.FloatTensor(1)
 
-  # ship to cuda
-  if args.cuda:
-    im_data = im_data.cuda()
-    im_info = im_info.cuda()
-    num_boxes = num_boxes.cuda()
-    gt_boxes = gt_boxes.cuda()
-
-  # make variable
-  im_data = Variable(im_data)
-  im_info = Variable(im_info)
-  num_boxes = Variable(num_boxes)
-  gt_boxes = Variable(gt_boxes)
 
   if args.cuda:
     cfg.CUDA = True
@@ -129,7 +112,7 @@ if __name__ == '__main__':
 
   output_dir = get_output_dir(imdb, save_name)
   dataset = roibatchLoader(roidb, ratio_list, ratio_index, 1, \
-                        imdb.num_classes, training=False, normalize = False, path_return=True)
+                        imdb.num_classes, training=False, normalize = False)
   dataloader = torch.utils.data.DataLoader(dataset, batch_size=1,
                             shuffle=False, num_workers=0,
                             pin_memory=True)
@@ -144,11 +127,11 @@ if __name__ == '__main__':
   for i in range(num_images):
 
       data = next(data_iter)
-      im_data.data.resize_(data[0].size()).copy_(data[0])
-      #print(data[0].size())
-      im_info.data.resize_(data[1].size()).copy_(data[1])
-      gt_boxes.data.resize_(data[2].size()).copy_(data[2])
-      num_boxes.data.resize_(data[3].size()).copy_(data[3])
+
+      im_data = data[0].to(device)
+      im_info = data[1].to(device)
+      gt_boxes = data[2].to(device)
+      num_boxes = data[3].to(device)
 
       det_tic = time.time()
       rois, cls_prob, bbox_pred, \
@@ -190,7 +173,7 @@ if __name__ == '__main__':
       misc_tic = time.time()
 
       for j in xrange(1, imdb.num_classes):
-          inds = torch.nonzero(scores[:,j]>thresh).view(-1) #[300]
+          inds = torch.nonzero(scores[:,j]>thresh, as_tuple=False).view(-1) #[300]
           # if there is det
           if inds.numel() > 0:
             cls_scores = scores[:,j][inds] #[300]

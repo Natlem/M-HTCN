@@ -120,7 +120,7 @@ class FocalLoss(nn.Module):
     def __init__(self, class_num, alpha=None, gamma=2, size_average=True,sigmoid=False,reduce=True):
         super(FocalLoss, self).__init__()
         if alpha is None:
-            self.alpha = Variable(torch.ones(class_num, 1) * 1.0)
+            self.alpha = torch.ones(class_num, 1) * 1.0
         else:
             if isinstance(alpha, Variable):
                 self.alpha = alpha
@@ -150,10 +150,10 @@ class FocalLoss(nn.Module):
             #inputs = F.sigmoid(inputs)
             P = F.softmax(inputs, dim = 1).clamp(1e-6,1)
 
-            class_mask = inputs.data.new(N, C).fill_(0)
-            class_mask = Variable(class_mask)
+            class_mask = torch.zeros(N, C).to(inputs.device)
             ids = targets.view(-1, 1)
             class_mask.scatter_(1, ids.data, 1.)
+
             # print(class_mask)
 
 
@@ -223,7 +223,7 @@ class FocalPseudo(nn.Module):
         #print(value)
         try:
             ind = value.ne(1)
-            indexes = torch.nonzero(ind)
+            indexes = torch.nonzero(ind, as_tuple=False)
             #value2 = inputs[indexes]
             inputs = inputs[indexes]
             log_p = inputs.log()
@@ -259,16 +259,29 @@ def CrossEntropy(output, label):
     loss = criteria(output, label)
     return loss
 
-class GradReverse(Function):
-    def __init__(self, lambd):
-        self.lambd = lambd
 
-    def forward(self, x):
+class GradReverse(Function):
+
+    @staticmethod
+    def forward(ctx, x, lambd):
+        ctx.lambd = lambd
         return x.view_as(x)
 
-    def backward(self, grad_output):
-        #pdb.set_trace()
-        return (grad_output * -self.lambd)
+    @staticmethod
+    def backward(ctx, grad_output):
+        output = grad_output * -ctx.lambd
+        return output, None
+
+# class GradReverse(Function):
+#     def __init__(self, lambd):
+#         self.lambd = lambd
+#
+#     def forward(self, x):
+#         return x.view_as(x)
+#
+#     def backward(self, grad_output):
+#         #pdb.set_trace()
+#         return (grad_output * -self.lambd)
 
 
 def self_entropy(prob, softmax):
@@ -288,7 +301,13 @@ def local_attention(features, d):
     # d.size() = [1, 1, h, w]  after sigmoid
 
     d = d.clamp(1e-6, 1)
-    H = - ( d * d.log() + (1-d) * (1-d).log() )
+    #Fix for when (d == 1).any() == True
+    c = 1 - d
+    if (c == 0).any():
+        c[c==0] = torch.finfo(torch.float32).eps
+
+    H = - (d * d.log() + (c) * (c).log())
+    # H = - ( d * d.log() + (1-d) * (1-d).log() )
     w = 1 - H
     features_new = (1 + w) * features
 
@@ -304,7 +323,8 @@ def middle_attention(features, d):
 
 
 def grad_reverse(x, lambd=1.0):
-    return GradReverse(lambd)(x)
+    # return GradReverse(lambd)(x)
+    return GradReverse.apply(x,lambd)
 
 def save_net(fname, net):
     import h5py
@@ -335,7 +355,7 @@ def clip_gradient(model, clip_norm):
     """Computes a gradient clipping coefficient based on gradient norm."""
     totalnorm = 0
     for p in model.parameters():
-        if p.requires_grad:
+        if p.requires_grad and p.grad is not None:
             modulenorm = p.grad.data.norm()
             totalnorm += modulenorm ** 2
     totalnorm = torch.sqrt(totalnorm).item()
@@ -343,7 +363,7 @@ def clip_gradient(model, clip_norm):
     norm = (clip_norm / max(totalnorm, clip_norm))
     #print(norm)
     for p in model.parameters():
-        if p.requires_grad:
+        if p.requires_grad and p.grad is not None:
             p.grad.mul_(norm)
 
 def vis_detections(im, class_name, dets, thresh=0.8):

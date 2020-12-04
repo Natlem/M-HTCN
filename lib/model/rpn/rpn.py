@@ -90,7 +90,7 @@ class _RPN(nn.Module):
             rpn_cls_score = rpn_cls_score_reshape.permute(0, 2, 3, 1).contiguous().view(batch_size, -1, 2)
             rpn_label = rpn_data[0].view(batch_size, -1)
 
-            rpn_keep = Variable(rpn_label.view(-1).ne(-1).nonzero().view(-1))
+            rpn_keep = Variable(rpn_label.view(-1).ne(-1).nonzero(as_tuple=False).view(-1))
             rpn_cls_score = torch.index_select(rpn_cls_score.view(-1,2), 0, rpn_keep)
             rpn_label = torch.index_select(rpn_label.view(-1), 0, rpn_keep.data)
             rpn_label = Variable(rpn_label.long())

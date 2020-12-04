@@ -3,15 +3,13 @@
 # Licensed under The MIT License [see LICENSE for details]
 # Written by Bharath Hariharan
 # --------------------------------------------------------
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+
 
 import xml.etree.ElementTree as ET
 import os
 import pickle
 import numpy as np
-
+from pathlib import Path
 
 def parse_rec(filename):
     """ Parse a PASCAL VOC xml file """
@@ -102,7 +100,8 @@ def voc_eval(detpath,
     # first load gt
     if not os.path.isdir(cachedir):
         os.mkdir(cachedir)
-    cachefile = os.path.join(cachedir, '%s_annots.pkl' % imagesetfile)
+    imagesetfile_p = Path('%s_annots.pkl' % imagesetfile).name
+    cachefile = os.path.join(cachedir, imagesetfile_p)
     # read list of images
     with open(imagesetfile, 'r') as f:
         lines = f.readlines()

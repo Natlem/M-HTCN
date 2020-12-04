@@ -2,9 +2,7 @@
 """The data layer used during training to train a Fast R-CNN network.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+
 
 import torch.utils.data as data
 from PIL import Image
@@ -33,6 +31,7 @@ class roibatchLoader(data.Dataset):
     self.ratio_index = ratio_index
     self.batch_size = batch_size
     self.data_size = len(self.ratio_list)
+    self.target_num = -1
 
     # given the ratio_list, we want to make the ratio same for each batch.
     self.ratio_list_batch = torch.Tensor(self.data_size).zero_()
@@ -188,7 +187,7 @@ class roibatchLoader(data.Dataset):
 
         # check the bounding box:
         not_keep = (gt_boxes[:,0] == gt_boxes[:,2]) | (gt_boxes[:,1] == gt_boxes[:,3])
-        keep = torch.nonzero(not_keep == 0).view(-1)
+        keep = torch.nonzero(not_keep == 0, as_tuple=False).view(-1)
 
         gt_boxes_padding = torch.FloatTensor(self.max_num_box, gt_boxes.size(1)).zero_()
         if keep.numel() != 0:
@@ -202,7 +201,7 @@ class roibatchLoader(data.Dataset):
         padding_data = padding_data.permute(2, 0, 1).contiguous()
         im_info = im_info.view(3)
 
-        return padding_data, im_info, gt_boxes_padding, num_boxes
+        return padding_data, im_info, gt_boxes_padding, num_boxes, blobs['img_name'], self.target_num
     else:
         data = data.permute(0, 3, 1, 2).contiguous().view(3, data_height, data_width)
         im_info = im_info.view(3)
@@ -210,7 +209,7 @@ class roibatchLoader(data.Dataset):
         gt_boxes = torch.FloatTensor([1,1,1,1,1])
         num_boxes = 0
 
-        return data, im_info, gt_boxes, num_boxes
+        return data, im_info, gt_boxes, num_boxes, blobs['img_name'], self.target_num
 
   def __len__(self):
     return len(self._roidb)

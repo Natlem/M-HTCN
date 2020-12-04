@@ -3,9 +3,7 @@
 # Licensed under The MIT License [see LICENSE for details]
 # Written by Ross Girshick and Xinlei Chen
 # --------------------------------------------------------
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+
 
 from datasets.imdb import imdb
 import datasets.ds_utils as ds_utils

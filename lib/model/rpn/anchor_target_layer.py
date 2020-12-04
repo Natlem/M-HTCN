@@ -85,7 +85,7 @@ class _AnchorTargetLayer(nn.Module):
                 (all_anchors[:, 2] < long(im_info[0][1]) + self._allowed_border) &
                 (all_anchors[:, 3] < long(im_info[0][0]) + self._allowed_border))
 
-        inds_inside = torch.nonzero(keep).view(-1) #[n]  n means we have n valid anchor box (about 12k in paper)
+        inds_inside = torch.nonzero(keep, as_tuple=False).view(-1) #[n]  n means we have n valid anchor box (about 12k in paper)
 
         # keep only inside anchors
         anchors = all_anchors[inds_inside, :] #[n, 4]
@@ -123,7 +123,7 @@ class _AnchorTargetLayer(nn.Module):
         for i in range(batch_size):
             # subsample positive labels if we have too many
             if sum_fg[i] > num_fg:
-                fg_inds = torch.nonzero(labels[i] == 1).view(-1)
+                fg_inds = torch.nonzero(labels[i] == 1, as_tuple=False).view(-1)
                 # torch.randperm seems has a bug on multi-gpu setting that cause the segfault.
                 # See https://github.com/pytorch/pytorch/issues/1868 for more details.
                 # use numpy instead.
@@ -137,7 +137,7 @@ class _AnchorTargetLayer(nn.Module):
 
             # subsample negative labels if we have too many
             if sum_bg[i] > num_bg:
-                bg_inds = torch.nonzero(labels[i] == 0).view(-1)
+                bg_inds = torch.nonzero(labels[i] == 0, as_tuple=False).view(-1)
                 #rand_num = torch.randperm(bg_inds.size(0)).type_as(gt_boxes).long()
 
                 rand_num = torch.from_numpy(np.random.permutation(bg_inds.size(0))).type_as(gt_boxes).long()

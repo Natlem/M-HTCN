@@ -231,13 +231,26 @@ class clipart(imdb):
         # #print((int(tree.find('width').text)))
         # seg_map = np.zeros((int(img_size.find('width').text),int(img_size.find('height').text)))
         # Load object bounding boxes into a data frame.
+        wh = tree.find('size')
+        w, h = int(wh.find('width').text), int(wh.find('height').text)
         for ix, obj in enumerate(objs):
             bbox = obj.find('bndbox')
-            # Make pixel indexes 0-based
             x1 = max(float(bbox.find('xmin').text) - 1, 0)
             y1 = max(float(bbox.find('ymin').text) - 1, 0)
             x2 = max(float(bbox.find('xmax').text) - 1, 0)
             y2 = max(float(bbox.find('ymax').text) - 1, 0)
+            # Make pixel indexes 0-based
+            # x1 = max(float(bbox.find('xmin').text) - 1, 0)
+            # y1 = max(float(bbox.find('ymin').text) - 1, 0)
+            # x2 = min(float(bbox.find('xmax').text) - 1, w)
+            # y2 = min(float(bbox.find('ymax').text) - 1, h)
+            #
+            # assert x2 > 0 and x2 <= w, "x2 should > 0"
+            # assert y2 > 0 and y2 <= h, "y2 should > 0 and lower than width"
+            # assert x1 >= 0 and x1 <= w, "x2 should > 0"
+            # assert y2 >= 0 and y1 <= h, "y2 should > 0"
+            # assert x1 < x2, "x1 < x2"
+            # assert y1 < y2, "x1 < x2"
 
             diffc = obj.find('difficult')
             difficult = 0 if diffc == None else int(diffc.text)
@@ -325,20 +338,21 @@ class clipart(imdb):
                 pickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
         with open(os.path.join(output_dir, 'eval_result.txt'), 'a') as result_f:
             result_f.write('Mean AP = {:.4f}'.format(np.mean(aps)) + '\n')
-        print('Mean AP = {:.4f}'.format(np.mean(aps)))
-        print('~~~~~~~~')
-        print('Results:')
-        for ap in aps:
-            print('{:.3f}'.format(ap))
-        print('{:.3f}'.format(np.mean(aps)))
-        print('~~~~~~~~')
-        print('')
-        print('--------------------------------------------------------------')
-        print('Results computed with the **unofficial** Python eval code.')
-        print('Results should be very close to the official MATLAB eval code.')
-        print('Recompute with `./tools/reval.py --matlab ...` for your paper.')
-        print('-- Thanks, The Management')
-        print('--------------------------------------------------------------')
+        # print('Mean AP = {:.4f}'.format(np.mean(aps)))
+        # print('~~~~~~~~')
+        # print('Results:')
+        # for ap in aps:
+        #     print('{:.3f}'.format(ap))
+        # print('{:.3f}'.format(np.mean(aps)))
+        # print('~~~~~~~~')
+        # print('')
+        # print('--------------------------------------------------------------')
+        # print('Results computed with the **unofficial** Python eval code.')
+        # print('Results should be very close to the official MATLAB eval code.')
+        # print('Recompute with `./tools/reval.py --matlab ...` for your paper.')
+        # print('-- Thanks, The Management')
+        # print('--------------------------------------------------------------')
+        return np.mean(aps)
 
     def _do_matlab_eval(self, output_dir='output'):
         print('-----------------------------------------------------')
@@ -357,7 +371,7 @@ class clipart(imdb):
 
     def evaluate_detections(self, all_boxes, output_dir):
         self._write_voc_results_file(all_boxes)
-        self._do_python_eval(output_dir)
+        map = self._do_python_eval(output_dir)
         if self.config['matlab_eval']:
             self._do_matlab_eval(output_dir)
         if self.config['cleanup']:
@@ -366,6 +380,7 @@ class clipart(imdb):
                     continue
                 filename = self._get_voc_results_file_template().format(cls)
                 os.remove(filename)
+        return map
 
     def competition_mode(self, on):
         if on:

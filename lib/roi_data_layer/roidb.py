@@ -1,7 +1,4 @@
 """Transform a roidb into a trainable roidb by adding a bunch of metadata."""
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import datasets
 import numpy as np

@@ -1,12 +1,10 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import os
 import os.path as osp
 import numpy as np
 # `pip install easydict` if you don't have it
 from easydict import EasyDict as edict
+import os
 
 __D = edict()
 # Consumers can get config by:
@@ -25,15 +23,17 @@ __D.WATER = "/watercolor"
 
 
 ### use ####
-__D.HOS = "/home2/zzb/datasets/Hospital"
-__D.INB = "/home2/zzb/datasets/inbreast"
-__D.PASCAL = "/home2/zzb/datasets/VOC07_12/VOCdevkit"
-__D.CLIPART = "/home2/zzb/datasets/clipart"
-__D.CITYSCAPE = "/home2/zzb/datasets/cityscapes/VOC/cityscapes"
-__D.FOGGYCITY = "/home2/zzb/datasets/cityscapes/VOC/cityscapes_foggy_0.02"
+__D.PASCAL = os.path.expanduser("datasets_syslink/VOCdevkit")
+__D.CLIPART = os.path.expanduser("datasets_syslink/clipart")
+__D.COMIC = os.path.expanduser("datasets_syslink/comic")
+__D.CITYSCAPE = os.path.expanduser("datasets_syslink/cityscape_original/")
+__D.CITYSCAPE_WATERCOLOR = os.path.expanduser("datasets_syslink/city_watercolor/")
+__D.WATERCOLOR_CAR = os.path.expanduser("datasets_syslink/watercolor_car/")
+__D.FOGGYCITY = os.path.expanduser("datasets_syslink/foggycityscapes/")
 __D.SIM10K = "/home2/zzb/datasets/sim10k"
-__D.KITTI = "/home2/zzb/datasets/kitti"
-__D.WATER = "/home2/zzb/datasets/watercolor"
+__D.KITTI = os.path.expanduser("datasets_syslink/kitti_original")
+__D.WATERCOLOR = os.path.expanduser("datasets_syslink/watercolor/")
+__D.WILDTRACK = os.path.expanduser("datasets_syslink/wildtrack/")
 # __D.CITYSCAPE_CAR = "/home2/zzb/datasets/cityscapes/VOC/cityscapes"
 
 def _merge_a_into_b(a, b):

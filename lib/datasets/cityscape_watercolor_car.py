@@ -30,25 +30,22 @@ from .voc_eval import voc_eval
 from model.utils.config import cfg
 from .config_dataset import cfg_d
 
-try:
-    xrange          # Python 2
-except NameError:
-    xrange = range  # Python 3
+
 
 # <<<< obsolete
 
-class cityscape_car(imdb):
+class cityscape_watercolor_car(imdb):
     def __init__(self, image_set, year, devkit_path=None):
-        imdb.__init__(self, 'cs_car_' + year + '_' + image_set)
+        imdb.__init__(self, 'cityscape_watercolor_car_' + year + '_' + image_set)
         self._year = year
         self._image_set = image_set
-        self._devkit_path = cfg_d.CITYSCAPE
+        self._devkit_path = cfg_d.CITYSCAPE_WATERCOLOR
         self._data_path = os.path.join(self._devkit_path, 'VOC' + self._year)
         self._classes = ('__background__',  # always index 0
                          'car')
-        self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
+        self._class_to_ind = dict(zip(self.classes, range(self.num_classes)))
 
-        self._image_ext = '.png'
+        self._image_ext = '.jpg'
         self._image_index = self._load_image_set_index()
         self._roidb_handler = self.gt_roidb
         self._salt = str(uuid.uuid4())
@@ -187,7 +184,7 @@ class cityscape_car(imdb):
         raw_data = sio.loadmat(filename)['boxes'].ravel()
 
         box_list = []
-        for i in xrange(raw_data.shape[0]):
+        for i in range(raw_data.shape[0]):
             boxes = raw_data[i][:, (1, 0, 3, 2)] - 1
             keep = ds_utils.unique_boxes(boxes)
             boxes = boxes[keep, :]
@@ -225,6 +222,8 @@ class cityscape_car(imdb):
         seg_areas = np.zeros((num_objs), dtype=np.float32)
         ishards = np.zeros((num_objs), dtype=np.int32)
         count = 0
+        wh = tree.find('size')
+        w, h = int(wh.find('width').text), int(wh.find('height').text)
         # Load object bounding boxes into a data frame.
         for ix, obj in enumerate(objs):
             try:
@@ -238,6 +237,13 @@ class cityscape_car(imdb):
             y1 = float(bbox.find('ymin').text) - 1
             x2 = float(bbox.find('xmax').text) - 1
             y2 = float(bbox.find('ymax').text) - 1
+            x1 = max(x1, 0)
+            y1 = max(y1, 0)
+            x2 = min(x2, w)
+            y2 = min(y2, h)
+            assert x2 > 0, "x2 should > 0"
+            assert y2 > 0, "y2 should > 0"
+
 
             diffc = obj.find('difficult')
             difficult = 0 if diffc == None else int(diffc.text)
@@ -283,7 +289,7 @@ class cityscape_car(imdb):
                     if dets == []:
                         continue
                     # the VOCdevkit expects 1-based indices
-                    for k in xrange(dets.shape[0]):
+                    for k in range(dets.shape[0]):
                         f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
                                 format(index, dets[k, -1],
                                        dets[k, 0] + 1, dets[k, 1] + 1,

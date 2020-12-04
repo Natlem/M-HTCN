@@ -37,18 +37,22 @@ except NameError:
 
 # <<<< obsolete
 
-class cityscape_car(imdb):
+class watercolor(imdb):
     def __init__(self, image_set, year, devkit_path=None):
-        imdb.__init__(self, 'cs_car_' + year + '_' + image_set)
+        imdb.__init__(self, 'watercolor_' + year + '_' + image_set)
         self._year = year
         self._image_set = image_set
-        self._devkit_path = cfg_d.CITYSCAPE
+        self._devkit_path = cfg_d.WATERCOLOR
         self._data_path = os.path.join(self._devkit_path, 'VOC' + self._year)
         self._classes = ('__background__',  # always index 0
-                         'car')
+                         'aeroplane', 'bicycle', 'bird', 'boat',
+                         'bottle', 'bus', 'car', 'cat', 'chair',
+                         'cow', 'diningtable', 'dog', 'horse',
+                         'motorbike', 'person', 'pottedplant',
+                         'sheep', 'sofa', 'train', 'tvmonitor')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
 
-        self._image_ext = '.png'
+        self._image_ext = '.jpg'
         self._image_index = self._load_image_set_index()
         self._roidb_handler = self.gt_roidb
         self._salt = str(uuid.uuid4())
@@ -200,23 +204,20 @@ class cityscape_car(imdb):
     def _load_pascal_annotation(self, index):
         """
         Load image and bounding boxes info from XML file in the PASCAL VOC
-        format. Some images contain classes which are not included in self._classes.
-        This code excludes the bounding boxes of such classes.
+        format.
         """
         filename = os.path.join(self._data_path, 'Annotations', index + '.xml')
         tree = ET.parse(filename)
         objs = tree.findall('object')
-        count = 0
-        for ix, obj in enumerate(objs):
-            # bboxe = obj.find('bndbox')
-            try:
-                cls = self._class_to_ind[obj.find('name').text.lower().strip()]
-                count += 1
-            except:
-                # print(filename)
-                continue
-
-        num_objs = count  # len(objs)
+        # if not self.config['use_diff']:
+        #     # Exclude the samples labeled as difficult
+        #     non_diff_objs = [
+        #         obj for obj in objs if int(obj.find('difficult').text) == 0]
+        #     # if len(non_diff_objs) != len(objs):
+        #     #     print 'Removed {} difficult objects'.format(
+        #     #         len(objs) - len(non_diff_objs))
+        #     objs = non_diff_objs
+        num_objs = len(objs)
 
         boxes = np.zeros((num_objs, 4), dtype=np.uint16)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
@@ -224,30 +225,43 @@ class cityscape_car(imdb):
         # "Seg" area for pascal is just the box area
         seg_areas = np.zeros((num_objs), dtype=np.float32)
         ishards = np.zeros((num_objs), dtype=np.int32)
-        count = 0
+        # tree = ET.parse(filename)
+        # img_size = tree.find('size')#[0]
+        # #print(img_size)
+        # #print((int(tree.find('width').text)))
+        # seg_map = np.zeros((int(img_size.find('width').text),int(img_size.find('height').text)))
         # Load object bounding boxes into a data frame.
+        wh = tree.find('size')
+        w, h = int(wh.find('width').text), int(wh.find('height').text)
         for ix, obj in enumerate(objs):
-            try:
-                cls = self._class_to_ind[obj.find('name').text.lower().strip()]
-            except:
-                continue
-
             bbox = obj.find('bndbox')
+            x1 = max(float(bbox.find('xmin').text) - 1, 0)
+            y1 = max(float(bbox.find('ymin').text) - 1, 0)
+            x2 = max(float(bbox.find('xmax').text) - 1, 0)
+            y2 = max(float(bbox.find('ymax').text) - 1, 0)
             # Make pixel indexes 0-based
-            x1 = float(bbox.find('xmin').text) - 1
-            y1 = float(bbox.find('ymin').text) - 1
-            x2 = float(bbox.find('xmax').text) - 1
-            y2 = float(bbox.find('ymax').text) - 1
+            # x1 = max(float(bbox.find('xmin').text) - 1, 0)
+            # y1 = max(float(bbox.find('ymin').text) - 1, 0)
+            # x2 = min(float(bbox.find('xmax').text) - 1, w)
+            # y2 = min(float(bbox.find('ymax').text) - 1, h)
+            #
+            # assert x2 > 0 and x2 <= w, "x2 should > 0"
+            # assert y2 > 0 and y2 <= h, "y2 should > 0 and lower than width"
+            # assert x1 >= 0 and x1 <= w, "x2 should > 0"
+            # assert y2 >= 0 and y1 <= h, "y2 should > 0"
+            # assert x1 < x2, "x1 < x2"
+            # assert y1 < y2, "x1 < x2"
 
             diffc = obj.find('difficult')
             difficult = 0 if diffc == None else int(diffc.text)
+            ishards[ix] = difficult
 
-            ishards[count] = difficult
-            boxes[count, :] = [x1, y1, x2, y2]
-            gt_classes[count] = cls
-            overlaps[count, cls] = 1.0
-            seg_areas[count] = (x2 - x1 + 1) * (y2 - y1 + 1)
-            count += 1
+            cls = self._class_to_ind[obj.find('name').text.lower().strip()]
+            boxes[ix, :] = [x1, y1, x2, y2]
+            # seg_map[int(x1):int(x2),int(y1):int(y2)] = cls
+            gt_classes[ix] = cls
+            overlaps[ix, cls] = 1.0
+            seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
 
         overlaps = scipy.sparse.csr_matrix(overlaps)
 
@@ -256,7 +270,9 @@ class cityscape_car(imdb):
                 'gt_ishard': ishards,
                 'gt_overlaps': overlaps,
                 'flipped': False,
-                'seg_areas': seg_areas}
+                'seg_areas': seg_areas,
+                # 'seg_map':seg_map
+                }
     def _get_comp_id(self):
         comp_id = (self._comp_id + '_' + self._salt if self.config['use_salt']
                    else self._comp_id)

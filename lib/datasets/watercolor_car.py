@@ -37,18 +37,18 @@ except NameError:
 
 # <<<< obsolete
 
-class cityscape_car(imdb):
+class watercolor_car(imdb):
     def __init__(self, image_set, year, devkit_path=None):
-        imdb.__init__(self, 'cs_car_' + year + '_' + image_set)
+        imdb.__init__(self, 'watercolor_car_' + year + '_' + image_set)
         self._year = year
         self._image_set = image_set
-        self._devkit_path = cfg_d.CITYSCAPE
+        self._devkit_path = cfg_d.WATERCOLOR_CAR
         self._data_path = os.path.join(self._devkit_path, 'VOC' + self._year)
         self._classes = ('__background__',  # always index 0
                          'car')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
 
-        self._image_ext = '.png'
+        self._image_ext = '.jpg'
         self._image_index = self._load_image_set_index()
         self._roidb_handler = self.gt_roidb
         self._salt = str(uuid.uuid4())
@@ -226,6 +226,9 @@ class cityscape_car(imdb):
         ishards = np.zeros((num_objs), dtype=np.int32)
         count = 0
         # Load object bounding boxes into a data frame.
+        wh = tree.find('size')
+        w, h = int(wh.find('width').text), int(wh.find('height').text)
+
         for ix, obj in enumerate(objs):
             try:
                 cls = self._class_to_ind[obj.find('name').text.lower().strip()]
@@ -234,10 +237,19 @@ class cityscape_car(imdb):
 
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
-            x1 = float(bbox.find('xmin').text) - 1
-            y1 = float(bbox.find('ymin').text) - 1
-            x2 = float(bbox.find('xmax').text) - 1
-            y2 = float(bbox.find('ymax').text) - 1
+            x1 = max(float(bbox.find('xmin').text) - 1, 0)
+            y1 = max(float(bbox.find('ymin').text) - 1, 0)
+            x2 = min(float(bbox.find('xmax').text) - 1, w)
+            y2 = min(float(bbox.find('ymax').text) - 1, h)
+
+
+            assert x2 > 0 and x2 <= w, "x2 should > 0"
+            assert y2 > 0 and y2 <= h, "y2 should > 0 and lower than width"
+            assert x1 >= 0 and x1 <= w, "x2 should > 0"
+            assert y2 >= 0 and y1 <= h, "y2 should > 0"
+            assert x1 < x2, "x1 < x2"
+            assert y1 < y2, "x1 < x2"
+
 
             diffc = obj.find('difficult')
             difficult = 0 if diffc == None else int(diffc.text)

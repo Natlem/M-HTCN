@@ -1,8 +1,5 @@
 # coding:utf-8
 # --------------------------------------------------------
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import os
 import numpy as np
@@ -30,6 +27,7 @@ if __name__ == '__main__':
 
     args = parse_args()
 
+
     print('Called with args:')
     print(args)
     args = set_dataset_args(args)
@@ -45,6 +43,9 @@ if __name__ == '__main__':
     # torch.backends.cudnn.benchmark = True
     if torch.cuda.is_available() and not args.cuda:
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+
+    device = torch.device('cuda')
+
 
     # train set
     # -- Note: Use validation set and disable the flipped to enable faster loading.
@@ -77,22 +78,24 @@ if __name__ == '__main__':
     dataloader_t = torch.utils.data.DataLoader(dataset_t, batch_size=args.batch_size,
                                                sampler=sampler_batch_t, num_workers=args.num_workers)
     # initilize the tensor holder here.
-    im_data = torch.FloatTensor(1)
-    im_info = torch.FloatTensor(1)
-    num_boxes = torch.LongTensor(1)
-    gt_boxes = torch.FloatTensor(1)
-    # ship to cuda
-    if args.cuda:
-        im_data = im_data.cuda()
-        im_info = im_info.cuda()
-        num_boxes = num_boxes.cuda()
-        gt_boxes = gt_boxes.cuda()
 
-    # make variable
-    im_data = Variable(im_data)
-    im_info = Variable(im_info)
-    num_boxes = Variable(num_boxes)
-    gt_boxes = Variable(gt_boxes)
+    # im_data = torch.FloatTensor(1)
+    # im_info = torch.FloatTensor(1)
+    # num_boxes = torch.LongTensor(1)
+    # gt_boxes = torch.FloatTensor(1)
+    # # ship to cuda
+    # if args.cuda:
+    #     im_data = im_data.cuda()
+    #     im_info = im_info.cuda()
+    #     num_boxes = num_boxes.cuda()
+    #     gt_boxes = gt_boxes.cuda()
+    #
+    # # make variable
+    # im_data = Variable(im_data)
+    # im_info = Variable(im_info)
+    # num_boxes = Variable(num_boxes)
+    # gt_boxes = Variable(gt_boxes)
+
     if args.cuda:
         cfg.CUDA = True
 
@@ -135,7 +138,7 @@ if __name__ == '__main__':
         optimizer = torch.optim.SGD(params, momentum=cfg.TRAIN.MOMENTUM)
 
     if args.cuda:
-        fasterRCNN.cuda()
+        fasterRCNN.to(device)
 
     if args.resume:
         checkpoint = torch.load(args.load_name)
@@ -161,12 +164,15 @@ if __name__ == '__main__':
 
         logger = SummaryWriter("logs")
     count_iter = 0
+    last_img_s = 'None'
+    last_img_t = 'None'
+
     for epoch in range(args.start_epoch, args.max_epochs + 1):
         # setting to train mode
         fasterRCNN.train()
 
         count_step = 0
-        loss_temp_last = 1  
+        loss_temp_last = 1
         loss_temp = 0
         loss_rpn_cls_temp = 0
         loss_rpn_box_temp = 0
@@ -196,18 +202,24 @@ if __name__ == '__main__':
             #eta = 1.0
 
             #put source data into variable
-            im_data.data.resize_(data_s[0].size()).copy_(data_s[0])
-            im_info.data.resize_(data_s[1].size()).copy_(data_s[1])
-            gt_boxes.data.resize_(data_s[2].size()).copy_(data_s[2])
-            num_boxes.data.resize_(data_s[3].size()).copy_(data_s[3])
+            im_data = data_s[0].to(device)
+            im_info = data_s[1].to(device)
+            gt_boxes = data_s[2].to(device)
+            num_boxes = data_s[3].to(device)
 
-            fasterRCNN.zero_grad()
-            rois, cls_prob, bbox_pred, \
-            rpn_loss_cls, rpn_loss_box, \
-            RCNN_loss_cls, RCNN_loss_bbox, \
-            rois_label, out_d_pixel, out_d, out_d_mid, out_d_ins = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
-            loss = rpn_loss_cls.mean() + rpn_loss_box.mean() \
-                   + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
+            try:
+                fasterRCNN.zero_grad()
+                rois, cls_prob, bbox_pred, \
+                rpn_loss_cls, rpn_loss_box, \
+                RCNN_loss_cls, RCNN_loss_bbox, \
+                rois_label, out_d_pixel, out_d, out_d_mid, out_d_ins = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+                loss = rpn_loss_cls.mean() + rpn_loss_box.mean() \
+                       + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
+            except ValueError as ve:
+                print(ve)
+                print(last_img_s)
+                print(last_img_t)
+                print(data_s[4])
 
             out_d_ins_softmax = F.softmax(out_d_ins, 1) #[256,2]
 
@@ -244,24 +256,31 @@ if __name__ == '__main__':
             dloss_s_ins = 0.5 * FL(out_d_ins, domain_gt_ins)
             ##############################################################
 
-            #put target data into variable
-            im_data.data.resize_(data_t[0].size()).copy_(data_t[0])
-            im_info.data.resize_(data_t[1].size()).copy_(data_t[1])
-            gt_boxes.data.resize_(1, 1, 5).zero_()
-            num_boxes.data.resize_(1).zero_()
 
-            out_d_pixel, out_d, out_d_mid, out_d_ins = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, target=True)
-            out_d_ins_softmax = F.softmax(out_d_ins, 1)
+            im_data = data_t[0].to(device)
+            im_info = data_t[1].to(device)
+
+            gt_boxes = torch.zeros((1,1,5)).to(device)
+            num_boxes = torch.zeros((1)).to(device)
+
+            try:
+                out_d_pixel, out_d, out_d_mid, out_d_ins = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, target=True)
+                out_d_ins_softmax = F.softmax(out_d_ins, 1)
+            except ValueError as ve:
+                print(ve)
+                print(last_img_s)
+                print(last_img_t)
+                print(data_t[4])
 
             ######################### da loss 1 #####################################
             # domain label
-            domain_t = Variable(torch.ones(out_d.size(0)).long().cuda())
+            domain_t = torch.ones(out_d.size(0)).long().to(device)
             dloss_t = 0.5 * FL(out_d, domain_t)
             # dloss_t = 0.5 * F.cross_entropy(out_d, domain_t)
 
             ######################### da loss 2 #####################################
             # domain label
-            domain_t_mid = Variable(torch.ones(out_d_mid.size(0)).long().cuda())
+            domain_t_mid = torch.ones(out_d_mid.size(0)).long().to(device)
             ##### mid alignment loss
             # dloss_t_mid = 0.5 * FL(out_d_mid, domain_t_mid)
             dloss_t_mid = 0.5 * F.cross_entropy(out_d_mid, domain_t_mid)
@@ -273,7 +292,7 @@ if __name__ == '__main__':
             ######################### da loss 4 #####################################
             # instance alignment loss
             # dloss_t_ins = 0.5 * torch.mean(out_d_ins_softmax[:, 0] ** 2) # out_d_ins[:,0] = 1 - out_d_ins[:,1]
-            domain_gt_ins = Variable(torch.ones(out_d_ins.size(0)).long().cuda())
+            domain_gt_ins = torch.ones(out_d_ins.size(0)).long().to(device)
             dloss_t_ins = 0.5 * FL(out_d_ins, domain_gt_ins)
             ##############################################################
 
@@ -282,9 +301,26 @@ if __name__ == '__main__':
             else:
                 loss += (dloss_s + dloss_t + dloss_s_p + dloss_t_p + dloss_s_mid * 0.15 + dloss_t_mid * 0.15 + dloss_s_ins * 0.5 + dloss_t_ins * 0.5)
 
+            if torch.isnan(loss).any() or torch.isinf(loss).any():
+
+                print("s_name: {}".format(data_s[4]))
+                print("s_gt_boxes:{}".format(data_s[2]))
+                print("s_im_info:{}".format(data_s[1]))
+                print("s_num_bixes:{}".format(data_s[3]))
+
+                print("t_name: {}".format(data_t[4]))
+                print("t_gt_boxes:{}".format(data_t[2]))
+                print("t_im_info:{}".format(data_t[1]))
+                print("t_num_bixes:{}".format(data_t[3]))
+                raise ValueError
+
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            last_img_s = data_s[4]
+            last_img_t = data_t[4]
 
             if step % args.disp_interval == 0:
                 end = time.time()
