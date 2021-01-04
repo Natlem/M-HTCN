@@ -97,6 +97,22 @@ class _AnchorTargetLayer(nn.Module):
 
         overlaps = bbox_overlaps_batch(anchors, gt_boxes) #[1, n, 20]
 
+        IOU_map = bbox_overlaps_batch(all_anchors, gt_boxes).view(
+            batch_size, height, width, A, gt_boxes.shape[1])
+        mask_batch = []
+        for i in range(batch_size):
+            max_iou, _ = torch.max(IOU_map[i].view(height * width * A,
+                                                   gt_boxes.shape[1]), dim=0)
+            mask_per_im = torch.zeros([height, width], dtype=torch.int64).cuda()
+            for k in range(gt_boxes.shape[1]):
+                if torch.sum(gt_boxes[i][k]) == 0.:
+                    break
+                max_iou_per_gt = max_iou[k] * 0.5
+                mask_per_gt = torch.sum(IOU_map[i][:, :, :, k] > max_iou_per_gt,
+                                        dim=2)
+                mask_per_im += mask_per_gt
+            mask_batch.append(mask_per_im)
+
         max_overlaps, argmax_overlaps = torch.max(overlaps, 2) # [1, n] [1,n]
         gt_max_overlaps, _ = torch.max(overlaps, 1)   # [1,20]
 
@@ -189,6 +205,9 @@ class _AnchorTargetLayer(nn.Module):
         bbox_outside_weights = bbox_outside_weights.contiguous().view(batch_size, height, width, 4*A)\
                             .permute(0,3,1,2).contiguous()
         outputs.append(bbox_outside_weights)
+
+        # add for mask for source distillation
+        outputs.append(mask_batch)
 
         return outputs
 

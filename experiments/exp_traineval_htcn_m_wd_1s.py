@@ -3,7 +3,7 @@ import os
 import frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
 from init_frcnn_utils import init_dataloaders_1s_1t, init_dataloaders_1s_mt, init_val_dataloaders_mt, \
-    init_model_optimizer
+    init_htcn_model_optimizer
 
 vars = get_config_var()
 from sacred import Experiment
@@ -102,9 +102,9 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, m_dataset_target,
     m_val_dataloader_t, m_val_imdb_t = init_val_dataloaders_mt(args, batch_size, num_workers)
 
     session = 1
-    fasterRCNN, lr, optimizer, session, start_epoch, _ = init_model_optimizer(LA_ATT, MID_ATT, class_agnostic, device, gc,
-                                                                           imdb, lc, load_name, net, optimizer, resume,
-                                                                           session, start_epoch)
+    fasterRCNN, lr, optimizer, session, start_epoch, _ = init_htcn_model_optimizer(LA_ATT, MID_ATT, class_agnostic, device, gc,
+                                                                                   imdb, lc, load_name, net, optimizer, resume,
+                                                                                   session, start_epoch)
 
     critic = WDCritic(256, 50).to(device)
     critic_optim = torch.optim.RMSprop(critic.parameters(), lr=0.00005)

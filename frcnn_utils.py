@@ -13,6 +13,7 @@ from model.faster_rcnn import mmd as mmd
 from model.faster_rcnn.faster_rcnn_HTCN import _fasterRCNN as frcnn_htcn
 from model.faster_rcnn.faster_rcnn import _fasterRCNN as frcnn_no_da
 from model.faster_rcnn.faster_rcnn_HTCN_mrpn import _fasterRCNN as frcnn_htcn_mprn
+from model.faster_rcnn.faster_rcnn_saito import _fasterRCNN as frcnn_saito
 
 import numpy as np
 import os
@@ -227,7 +228,7 @@ def train_htcn_one_epoch(args, FL, total_step,
             print("t_gt_boxes:{}".format(data_t[2]))
             print("t_im_info:{}".format(data_t[1]))
             print("t_num_bixes:{}".format(data_t[3]))
-            raise
+            raise ValueError("Nan in loss")
 
         optimizer.zero_grad()
         loss.backward()
@@ -654,116 +655,121 @@ def train_htcn_one_epoch_multi_targets_seq_mce_binary(args, FL, total_step,
 
 
 
+def train_saito_one_epoch(args, FL, total_step,
+                         dataloader_s, dataloader_t, iters_per_epoch,
+                         fasterRCNN, optimizer, device, logger=None):
+    count_step = 0
+    loss_temp_last = 1
+    loss_temp = 0
+    loss_rpn_cls_temp = 0
+    loss_rpn_box_temp = 0
+    loss_rcnn_cls_temp = 0
+    loss_rcnn_box_temp = 0
 
-def eval_one_dataloader(save_dir_test_out, dataloader_t, fasterRCNN, device, imdb,
-                        class_agnostic=False, thresh=0.0, max_per_image=100):
+    data_iter_s = iter(dataloader_s)
+    data_iter_t = iter(dataloader_t)
+    count_step = 0
+    for step in range(1, iters_per_epoch + 1):
+        try:
+            data_s = next(data_iter_s)
+        except:
+            data_iter_s = iter(dataloader_s)
+            data_s = next(data_iter_s)
+        try:
+            data_t = next(data_iter_t)
+        except:
+            data_iter_t = iter(dataloader_t)
+            data_t = next(data_iter_t)
+        # eta = 1.0
 
-    save_name = save_dir_test_out + '_test_in_'
-    num_images = len(imdb.image_index)
-    all_boxes = [[[] for _ in range(num_images)]
-                 for _ in range(imdb.num_classes)]
+        total_step += 1
+        count_step += 1
 
-    output_dir = get_output_dir(imdb, save_name)
-    data_iter = iter(dataloader_t)
+        im_data = data_s[0].to(device)
+        im_info = data_s[1].to(device)
+        gt_boxes = data_s[2].to(device)
+        num_boxes = data_s[3].to(device)
 
-    _t = {'im_detect': time.time(), 'misc': time.time()}
-    det_file = os.path.join(output_dir, 'detections.pkl')
-
-    fasterRCNN.eval()
-    empty_array = np.transpose(np.array([[], [], [], [], []]), (1, 0))
-    for i in range(num_images):
-
-        data = next(data_iter)
-
-        im_data = data[0].to(device)
-        im_info = data[1].to(device)
-        gt_boxes = data[2].to(device)
-        num_boxes = data[3].to(device)
-
-        det_tic = time.time()
+        fasterRCNN.zero_grad()
         rois, cls_prob, bbox_pred, \
         rpn_loss_cls, rpn_loss_box, \
         RCNN_loss_cls, RCNN_loss_bbox, \
-        rois_label, d_pred, _, _, _ = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+        rois_label, out_d_pixel, out_d = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+        loss = rpn_loss_cls.mean() + rpn_loss_box.mean() \
+               + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
+        loss_temp += loss.item()
+        loss_rpn_cls_temp += rpn_loss_cls.mean().item()
+        loss_rpn_box_temp += rpn_loss_box.mean().item()
+        loss_rcnn_cls_temp += RCNN_loss_cls.mean().item()
+        loss_rcnn_box_temp += RCNN_loss_bbox.mean().item()
 
-        scores = cls_prob.data
-        boxes = rois.data[:, :, 1:5]
-        # d_pred = d_pred.data
-        # path = data[4]
+        # domain label
+        domain_s = torch.zeros(out_d.size(0)).long().cuda()
+        # global alignment loss
+        dloss_s = 0.5 * FL(out_d, domain_s)
+        # local alignment loss
+        dloss_s_p = 0.5 * torch.mean(out_d_pixel ** 2)
 
-        if cfg.TEST.BBOX_REG:
-            # Apply bounding-box regression deltas
-            box_deltas = bbox_pred.data
-            if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
-                # Optionally normalize targets by a precomputed mean and stdev
-                if class_agnostic:
-                    box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
-                                 + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
-                    box_deltas = box_deltas.view(1, -1, 4)
-                else:
-                    box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
-                                 + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
-                    box_deltas = box_deltas.view(1, -1, 4 * len(imdb.classes))
+        im_data = data_t[0].to(device)
+        im_info = data_t[1].to(device)
 
-            pred_boxes = bbox_transform_inv(boxes, box_deltas, 1)
-            pred_boxes = clip_boxes(pred_boxes, im_info.data, 1)
-        else:
-            # Simply repeat the boxes, once for each class
-            pred_boxes = np.tile(boxes, (1, scores.shape[1]))
+        gt_boxes = torch.zeros((1, 1, 5)).to(device)
+        num_boxes = torch.zeros([1]).to(device)
+        out_d_pixel, out_d = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, target=True)
+        # domain label
+        domain_t = torch.ones(out_d.size(0)).long().cuda()
+        dloss_t = 0.5 * FL(out_d, domain_t)
+        # local alignment loss
+        dloss_t_p = 0.5 * torch.mean((1 - out_d_pixel) ** 2)
+        loss += (dloss_s + dloss_t + dloss_s_p + dloss_t_p)
 
-        pred_boxes /= data[1][0][2].item()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
-        scores = scores.squeeze()  # [1, 300, 2] -> [300, 2]
-        pred_boxes = pred_boxes.squeeze()  # [1, 300, 8] -> [300, 8]
-        det_toc = time.time()
-        detect_time = det_toc - det_tic
-        misc_tic = time.time()
+        if step % args.disp_interval == 0:
+            end = time.time()
 
-        for j in range(1, imdb.num_classes):
-            inds = torch.nonzero(scores[:, j] > thresh, as_tuple=False).view(-1)  # [300]
-            # if there is det
-            if inds.numel() > 0:
-                cls_scores = scores[:, j][inds]  # [300]
-                _, order = torch.sort(cls_scores, 0, True)
-                if class_agnostic:
-                    cls_boxes = pred_boxes[inds, :]
-                else:
-                    cls_boxes = pred_boxes[inds][:, j * 4:(j + 1) * 4]  # [300, 4]
+            loss_temp /= count_step
+            loss_rpn_cls_temp /= count_step
+            loss_rpn_box_temp /= count_step
+            loss_rcnn_cls_temp /= count_step
+            loss_rcnn_box_temp /= count_step
 
-                cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)  # [300, 5]
-                # cls_dets = torch.cat((cls_boxes, cls_scores), 1)
-                cls_dets = cls_dets[order]
-                # keep = nms(cls_dets, cfg.TEST.NMS)
-                keep = nms(cls_boxes[order, :], cls_scores[order], cfg.TEST.NMS)  # [N, 1]
-                cls_dets = cls_dets[keep.view(-1).long()]  # [N, 5]
-
-                all_boxes[j][i] = cls_dets.cpu().numpy()
+            if torch.cuda.device_count() > 2:
+                loss_rpn_cls = rpn_loss_cls.mean().item()
+                loss_rpn_box = rpn_loss_box.mean().item()
+                loss_rcnn_cls = RCNN_loss_cls.mean().item()
+                loss_rcnn_box = RCNN_loss_bbox.mean().item()
+                fg_cnt = torch.sum(rois_label.data.ne(0))
+                bg_cnt = rois_label.data.numel() - fg_cnt
             else:
-                all_boxes[j][i] = empty_array
+                loss_rpn_cls = rpn_loss_cls.item()
+                loss_rpn_box = rpn_loss_box.item()
+                loss_rcnn_cls = RCNN_loss_cls.item()
+                loss_rcnn_box = RCNN_loss_bbox.item()
+                dloss_s = dloss_s.item()
+                dloss_t = dloss_t.item()
+                dloss_s_p = dloss_s_p.item()
+                dloss_t_p = dloss_t_p.item()
+                fg_cnt = torch.sum(rois_label.data.ne(0))
+                bg_cnt = rois_label.data.numel() - fg_cnt
 
-        # Limit to max_per_image detections *over all classes*
-        if max_per_image > 0:
-            image_scores = np.hstack([all_boxes[j][i][:, -1]
-                                      for j in range(1, imdb.num_classes)])  # [M,]
-            if len(image_scores) > max_per_image:
-                image_thresh = np.sort(image_scores)[-max_per_image]
-                for j in range(1, imdb.num_classes):
-                    keep = np.where(all_boxes[j][i][:, -1] >= image_thresh)[0]
-                    all_boxes[j][i] = all_boxes[j][i][keep, :]
+            if logger:
+                logger.log_scalar("loss", loss_temp, total_step)
+                logger.log_scalar("loss_rpn_cls", loss_rpn_cls_temp, total_step)
+                logger.log_scalar("loss_rpn_box", loss_rpn_box_temp, total_step)
+                logger.log_scalar("loss_rcnn_cls", loss_rcnn_cls_temp, total_step)
+                logger.log_scalar("loss_rcnn_box", loss_rcnn_box_temp, total_step)
 
-        misc_toc = time.time()
-        nms_time = misc_toc - misc_tic
-
-        # sys.stdout.write('im_detect: {:d}/{:d} {:.3f}s {:.3f}s   \r' \
-        #                  .format(i + 1, num_images, detect_time, nms_time))
-        # sys.stdout.flush()
-
-    with open(det_file, 'wb') as f:
-        pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
-
-    print('Evaluating detections')
-    map = imdb.evaluate_detections(all_boxes, output_dir)
-    return map
+            count_step = 0
+            loss_temp_last = loss_temp
+            loss_temp = 0
+            loss_rpn_cls_temp = 0
+            loss_rpn_box_temp = 0
+            loss_rcnn_cls_temp = 0
+            loss_rcnn_box_temp = 0
+    return total_step
 
 def eval_one_dataloader(save_dir_test_out, dataloader_t, fasterRCNN, device, imdb, target_num=0,
                         class_agnostic=False, thresh=0.0, max_per_image=100):
@@ -796,6 +802,12 @@ def eval_one_dataloader(save_dir_test_out, dataloader_t, fasterRCNN, device, imd
             rpn_loss_cls, rpn_loss_box, \
             RCNN_loss_cls, RCNN_loss_bbox, \
             rois_label, d_pred, _, _, _ = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, target_num=target_num)
+        elif isinstance(fasterRCNN, frcnn_saito):
+            det_tic = time.time()
+            rois, cls_prob, bbox_pred, \
+            rpn_loss_cls, rpn_loss_box, \
+            RCNN_loss_cls, RCNN_loss_bbox, \
+            rois_label, _, _ = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
         else:
             det_tic = time.time()
             rois, cls_prob, bbox_pred, \

@@ -1,5 +1,6 @@
 import torch
 from model.faster_rcnn.resnet import resnet as n_resnet
+from model.faster_rcnn.resnet_saito import resnet as s_resnet
 from model.faster_rcnn.resnet_HTCN import resnet
 from model.faster_rcnn.vgg16 import vgg16 as n_vgg16
 from model.faster_rcnn.vgg16_HTCN import vgg16
@@ -122,8 +123,31 @@ def init_val_dataloaders_1t(args, batch_size, num_workers):
     return dataloader_t, imdb_t
 
 
-def init_model_optimizer(alr, LA_ATT, MID_ATT, class_agnostic, device, gc, imdb, lc, load_name, net, optimizer, resume,
-                         session, start_epoch, target_num=1, with_wd=False):
+def init_model_only(device, net, backbone_fn, imdb, load_path, **kwargs):
+
+    if net == 'vgg16':
+        fasterRCNN = backbone_fn(imdb.classes, pretrained=False, **kwargs)
+    elif net == 'res101':
+        fasterRCNN = backbone_fn(imdb.classes, 101, pretrained=False, **kwargs)
+    elif net == 'res50':
+        fasterRCNN = backbone_fn(imdb.classes, 50, pretrained=False, **kwargs)
+    elif net == 'res152':
+        fasterRCNN = backbone_fn(imdb.classes, 152, pretrained=False, **kwargs)
+    else:
+        raise NotImplementedError("Not implemented for other architecture")
+    fasterRCNN.create_architecture()
+    fasterRCNN.to(device)
+    checkpoint = torch.load(load_path)
+    session = checkpoint['session']
+    start_epoch = checkpoint['epoch']
+    fasterRCNN.load_state_dict(checkpoint['model'], strict=False)
+    if 'pooling_mode' in checkpoint.keys():
+        cfg.POOLING_MODE = checkpoint['pooling_mode']
+    print("loaded checkpoint %s" % (load_path))
+    return fasterRCNN
+
+def init_htcn_model_optimizer(alr, LA_ATT, MID_ATT, class_agnostic, device, gc, imdb, lc, load_name, net, optimizer, resume,
+                              session, start_epoch, target_num=1, with_aop=False):
 
     optimizer_wd = None
     if net == 'vgg16':
@@ -132,6 +156,13 @@ def init_model_optimizer(alr, LA_ATT, MID_ATT, class_agnostic, device, gc, imdb,
     elif net == 'res101':
         fasterRCNN = resnet(imdb.classes, 101, pretrained=True, class_agnostic=class_agnostic,
                             lc=lc, gc=gc, la_attention=LA_ATT, mid_attention=MID_ATT)
+    elif net == 'res50':
+        fasterRCNN = resnet(imdb.classes, 50, pretrained=True, class_agnostic=class_agnostic,
+                            lc=lc, gc=gc, la_attention=LA_ATT, mid_attention=MID_ATT)
+    elif net == 'res152':
+        fasterRCNN = resnet(imdb.classes, 152, pretrained=True, class_agnostic=class_agnostic,
+                            lc=lc, gc=gc, la_attention=LA_ATT, mid_attention=MID_ATT)
+
     else:
         raise NotImplementedError("Not implemented for other architecture")
     fasterRCNN.create_architecture()
@@ -146,7 +177,7 @@ def init_model_optimizer(alr, LA_ATT, MID_ATT, class_agnostic, device, gc, imdb,
             else:
                 params += [{'params': [value], 'lr': lr, 'weight_decay': cfg.TRAIN.WEIGHT_DECAY}]
 
-    if with_wd:
+    if with_aop:
         params_wd = []
         for key, value in dict(fasterRCNN.named_parameters()).items():
             if value.requires_grad:
@@ -160,12 +191,12 @@ def init_model_optimizer(alr, LA_ATT, MID_ATT, class_agnostic, device, gc, imdb,
     if optimizer == "adam":
         lr = lr * 0.1
         optimizer = torch.optim.Adam(params)
-        if with_wd:
+        if with_aop:
             optimizer_wd = torch.optim.Adam(params_wd)
 
     elif optimizer == "sgd":
         optimizer = torch.optim.SGD(params, momentum=cfg.TRAIN.MOMENTUM)
-        if with_wd:
+        if with_aop:
             optimizer_wd = torch.optim.SGD(params_wd, momentum=cfg.TRAIN.MOMENTUM)
 
 
@@ -182,6 +213,56 @@ def init_model_optimizer(alr, LA_ATT, MID_ATT, class_agnostic, device, gc, imdb,
         print("loaded checkpoint %s" % (load_name))
     return fasterRCNN, lr, optimizer, session, start_epoch, optimizer_wd
 
+def init_saito_model_optimizer(alr, class_agnostic, device, gc, imdb, lc, load_name, net, optimizer, resume,
+                         session, start_epoch, target_num=1):
+
+
+    if net == 'vgg16':
+        fasterRCNN = n_vgg16(imdb.classes, pretrained=True, class_agnostic=class_agnostic, lc=lc,
+                           gc=gc)
+    elif net == 'res101':
+        fasterRCNN = s_resnet(imdb.classes, 101, pretrained=True, class_agnostic=class_agnostic,
+                            lc=lc, gc=gc)
+    elif net == 'res50':
+        fasterRCNN = s_resnet(imdb.classes, 50, pretrained=True, class_agnostic=class_agnostic,
+                            lc=lc, gc=gc)
+    elif net == 'res152':
+        fasterRCNN = s_resnet(imdb.classes, 152, pretrained=True, class_agnostic=class_agnostic,
+                            lc=lc, gc=gc)
+
+    else:
+        raise NotImplementedError("Not implemented for other architecture")
+    fasterRCNN.create_architecture()
+    lr = cfg.TRAIN.LEARNING_RATE
+    lr = alr
+    params = []
+    for key, value in dict(fasterRCNN.named_parameters()).items():
+        if value.requires_grad:
+            if 'bias' in key:
+                params += [{'params': [value], 'lr': lr * (cfg.TRAIN.DOUBLE_BIAS + 1), \
+                            'weight_decay': cfg.TRAIN.BIAS_DECAY and cfg.TRAIN.WEIGHT_DECAY or 0}]
+            else:
+                params += [{'params': [value], 'lr': lr, 'weight_decay': cfg.TRAIN.WEIGHT_DECAY}]
+
+    if optimizer == "adam":
+        lr = lr * 0.1
+        optimizer = torch.optim.Adam(params)
+
+    elif optimizer == "sgd":
+        optimizer = torch.optim.SGD(params, momentum=cfg.TRAIN.MOMENTUM)
+
+    fasterRCNN.to(device)
+    if resume:
+        checkpoint = torch.load(load_name)
+        session = checkpoint['session']
+        start_epoch = checkpoint['epoch']
+        fasterRCNN.load_state_dict(checkpoint['model'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        lr = optimizer.param_groups[0]['lr']
+        if 'pooling_mode' in checkpoint.keys():
+            cfg.POOLING_MODE = checkpoint['pooling_mode']
+        print("loaded checkpoint %s" % (load_name))
+    return fasterRCNN, lr, optimizer, session, start_epoch, None
 
 def init_non_damodel_optimizer(alr, class_agnostic, device, imdb, load_name, net, optimizer, resume,
                          session, start_epoch):
@@ -191,6 +272,8 @@ def init_non_damodel_optimizer(alr, class_agnostic, device, imdb, load_name, net
         fasterRCNN = n_vgg16(imdb.classes, pretrained=True, class_agnostic=class_agnostic)
     elif net == 'res101':
         fasterRCNN = n_resnet(imdb.classes, 101, pretrained=True, class_agnostic=class_agnostic)
+    elif net == 'res50':
+        fasterRCNN = n_resnet(imdb.classes, 50, pretrained=True, class_agnostic=class_agnostic)
     else:
         raise NotImplementedError("Not implemented for other architecture")
     fasterRCNN.create_architecture()

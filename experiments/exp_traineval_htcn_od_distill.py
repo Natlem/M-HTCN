@@ -1,8 +1,9 @@
 import os
 
 import frcnn_utils
+import distill_frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
-
+import init_frcnn_utils
 
 vars = get_config_var()
 from sacred import Experiment
@@ -25,11 +26,17 @@ import torch.nn as nn
 from model.utils.config import cfg, cfg_from_file, cfg_from_list
 from model.utils.net_utils import adjust_learning_rate, save_checkpoint, FocalLoss, EFocalLoss
 
+from model.faster_rcnn.resnet import resnet as n_resnet
+from model.faster_rcnn.resnet_saito import resnet as s_resnet
+from model.faster_rcnn.resnet_HTCN import resnet as htcn_resnet
+from model.faster_rcnn.vgg16 import vgg16 as n_vgg16
+from model.faster_rcnn.vgg16_HTCN import vgg16 as htcn_vgg16
+from model.faster_rcnn.vgg16_HTCN_mrpn import vgg16 as vgg16_mrpn
 
 from model.utils.parser_func import set_dataset_args
-from init_frcnn_utils import init_dataloaders_1s_1t, init_dataloaders_1s_mixed_mt, init_val_dataloaders_mt, \
-    init_val_dataloaders_1t, init_htcn_model_optimizer
 
+import traineval_net_HTCN
+from typing import Any
 
 @ex.config
 def exp_config():
@@ -37,18 +44,17 @@ def exp_config():
 
     # config file
     cfg_file = "cfgs/res101.yml"
-    output_dir = "all_saves/htcn_mixed"
+    output_dir = "all_saves/htcn_single"
     dataset_source = "kitti_car_trainval"
-    dataset_target = ["watercolor_car", "cityscape_car"]
-    val_datasets = ["watercolor_car", "cityscape_car"]
-    # dataset_source = "voc_0712"
-    # dataset_target = ["comic", "clipart", "watercolor"]
-    # val_datasets = ["comic", "clipart", "watercolor"]
+    dataset_target = "cs_car"
+    val_datasets = ["cs_car"]
+
 
     device = "cuda"
-    net = "res50"
+    net = "res101"
     optimizer = "sgd"
     num_workers = 0
+    teacher_pth = ''
 
     lr = 0.001
     batch_size = 1
@@ -60,6 +66,7 @@ def exp_config():
     resume = False
     load_name = ""
 
+    imitation_loss_weight = 0.01
     eta = 0.1
     gamma = 3
     ef = False
@@ -74,13 +81,13 @@ def exp_config():
 
 @ex.capture
 def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_datasets,
-                    device, net, optimizer, num_workers,
+                    device, net, optimizer, num_workers, teacher_pth,
                     lr, batch_size, start_epoch, max_epochs, lr_decay_gamma, lr_decay_step,
                     resume, load_name,
-                    eta, gamma, ef, class_agnostic, lc, gc, LA_ATT, MID_ATT,
+                    imitation_loss_weight, eta, gamma, ef, class_agnostic, lc, gc, LA_ATT, MID_ATT,
                     debug, _run):
 
-    args = Args(dataset=dataset_source, dataset_t=dataset_target, imdb_name_target=[], cfg_file=cfg_file, net=net)
+    args = Args(dataset=dataset_source, dataset_t=dataset_target, cfg_file=cfg_file, net=net)
     args = set_dataset_args(args)
 
     args_val = Args(dataset=dataset_source, dataset_t=val_datasets, imdb_name_target=[], cfg_file=cfg_file, net=net)
@@ -104,13 +111,16 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    dataloader_s, dataloader_t, imdb = init_dataloaders_1s_mixed_mt(args, batch_size, num_workers)
-    val_dataloader_ts, val_imdb_ts = init_val_dataloaders_mt(args_val, 1, num_workers)
+    dataloader_s, dataloader_t, imdb = init_frcnn_utils.init_dataloaders_1s_1t(args, batch_size, num_workers)
+    val_dataloader_ts, val_imdb_ts = init_frcnn_utils.init_val_dataloaders_mt(args_val, 1, num_workers)
 
     session = 1
-    fasterRCNN, lr, optimizer, session, start_epoch, _ = init_htcn_model_optimizer(lr, LA_ATT, MID_ATT, class_agnostic, device, gc,
+    teacher = init_frcnn_utils.init_model_only(device, "res101", htcn_resnet, imdb, teacher_pth, class_agnostic=class_agnostic, lc=lc,
+                           gc=gc, la_attention=LA_ATT, mid_attention=MID_ATT)
+
+    fasterRCNN, lr, optimizer, session, start_epoch, optimizer_kd = init_frcnn_utils.init_htcn_model_optimizer(lr, LA_ATT, MID_ATT, class_agnostic, device, gc,
                                                                                    imdb, lc, load_name, net, optimizer, resume,
-                                                                                   session, start_epoch)
+                                                                                   session, start_epoch, with_aop=True)
 
     if torch.cuda.device_count() > 1:
         fasterRCNN = nn.DataParallel(fasterRCNN)
@@ -132,17 +142,22 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             adjust_learning_rate(optimizer, lr_decay_gamma)
             lr *= lr_decay_gamma
 
-        total_step = frcnn_utils.train_htcn_one_epoch(args, FL, total_step, dataloader_s, dataloader_t, iters_per_epoch, fasterRCNN, optimizer, device, logger)
+        total_step = distill_frcnn_utils.train_htcn_one_epoch_single_target_od(args, FL, total_step, dataloader_s, dataloader_t,
+                    iters_per_epoch, fasterRCNN, teacher, optimizer, optimizer_kd, device, imitation_loss_weight, epoch, 400, logger)
+
         if isinstance(val_datasets, list):
             avg_ap = 0
             for i, val_dataloader_t in enumerate(val_dataloader_ts):
                 map = frcnn_utils.eval_one_dataloader(output_dir, val_dataloader_t, fasterRCNN, device, val_imdb_ts[i])
                 logger.log_scalar("map on {}".format(val_datasets[i]), map, total_step)
-                avg_ap += map
-            avg_ap /= len(val_dataloader_ts)
-            logger.log_scalar("avg map on", avg_ap , total_step)
+                avg_ap += map / len(val_dataloader_ts)
+            logger.log_scalar("avg map on", avg_ap, total_step)
             if avg_ap > best_ap:
                 best_ap = avg_ap
+                save_best_name = "{}_best_map.p_ds_{}_2_dt_{}_on_{}".format(_run._id, dataset_source, dataset_target, net)
+                if torch.cuda.device_count() > 1:
+
+                    torch.save(fasterRCNN.module, os.path.join())
 
 
         save_name = os.path.join(output_dir,
@@ -162,27 +177,19 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
     return best_ap.item()
 
 
-
 @ex.main
 def run_exp():
     return exp_htcn_mixed()
 
 if __name__ == "__main__":
 
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'dataset_source': "kitti_car_trainval",
-    #                        'dataset_target': ["cityscape_car", "watercolor_car"],
-    #                        'val_datasets': ["cityscape_car", "watercolor_car"],
-    #
-    #                        },
-    #        options={"--name": 'htcn_rmixed_kitti_2_city_water_res50'})
-
     ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
                            'net': 'res50',
-                           'dataset_source':"wildtrack_C1",
-                           'dataset_target': ["wildtrack_C2", "wildtrack_C3", "wildtrack_C4", "wildtrack_C5", "wildtrack_C6", "wildtrack_C7"],
-                           'val_datasets': ["wildtrack_C2", "wildtrack_C3", "wildtrack_C4", "wildtrack_C5", "wildtrack_C6", "wildtrack_C7"],
+                           'lr': 0.001,
+                           'lr_decay_step': [5],
+                           'dataset_source': 'voc_0712',
+                           'dataset_target': 'watercolor',
+                           'val_datasets': ['watercolor'],
+                           'teacher_pth': './all_saves/htcn_single_135/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth'},
 
-                           },
-           options={"--name": 'htcn_rmixed_wt_c1_2_rest_res50'})
+           options={"--name": 'htcn_voc_2_watercolor_res101_2_50_source_distill'})

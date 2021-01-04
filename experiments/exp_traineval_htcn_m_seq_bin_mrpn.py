@@ -3,7 +3,7 @@ import os
 import frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
 from init_frcnn_utils import init_dataloaders_1s_1t, init_dataloaders_1s_mt, init_val_dataloaders_mt, \
-    init_model_optimizer, init_mrpn_model_optimizer
+    init_htcn_model_optimizer, init_mrpn_model_optimizer
 
 vars = get_config_var()
 from sacred import Experiment

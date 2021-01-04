@@ -230,6 +230,8 @@ def set_dataset_args(args, test=False):
                 args.imdb_name_target = "kitti_car_2007_train"
             elif args.dataset_t == "cityscape_watercolor_car":
                 args.imdb_name_target = "cityscape_watercolor_car_2007_train"
+            elif args.dataset_t == "watercolor_car":
+                args.imdb_name_target = "watercolor_car_2007_train"
             elif 'wildtrack' in args.dataset_t:
                 args.imdb_name_target = args.dataset_t.lower() + "_trainval"
     else:

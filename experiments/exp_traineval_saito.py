@@ -2,7 +2,8 @@ import os
 
 import frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
-
+from init_frcnn_utils import init_dataloaders_1s_1t, init_val_dataloaders_mt, init_val_dataloaders_1t, \
+    init_htcn_model_optimizer, init_saito_model_optimizer
 
 vars = get_config_var()
 from sacred import Experiment
@@ -27,9 +28,9 @@ from model.utils.net_utils import adjust_learning_rate, save_checkpoint, FocalLo
 
 
 from model.utils.parser_func import set_dataset_args
-from init_frcnn_utils import init_dataloaders_1s_1t, init_dataloaders_1s_mixed_mt, init_val_dataloaders_mt, \
-    init_val_dataloaders_1t, init_htcn_model_optimizer
 
+import traineval_net_HTCN
+from typing import Any
 
 @ex.config
 def exp_config():
@@ -37,16 +38,14 @@ def exp_config():
 
     # config file
     cfg_file = "cfgs/res101.yml"
-    output_dir = "all_saves/htcn_mixed"
+    output_dir = "all_saves/htcn_single"
     dataset_source = "kitti_car_trainval"
-    dataset_target = ["watercolor_car", "cityscape_car"]
-    val_datasets = ["watercolor_car", "cityscape_car"]
-    # dataset_source = "voc_0712"
-    # dataset_target = ["comic", "clipart", "watercolor"]
-    # val_datasets = ["comic", "clipart", "watercolor"]
+    dataset_target = "cs_car"
+    val_datasets = ["cs_car"]
+
 
     device = "cuda"
-    net = "res50"
+    net = "res101"
     optimizer = "sgd"
     num_workers = 0
 
@@ -66,8 +65,6 @@ def exp_config():
     class_agnostic = False
     lc = True
     gc = True
-    LA_ATT = True
-    MID_ATT = True
 
 
     debug = True
@@ -77,10 +74,10 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
                     device, net, optimizer, num_workers,
                     lr, batch_size, start_epoch, max_epochs, lr_decay_gamma, lr_decay_step,
                     resume, load_name,
-                    eta, gamma, ef, class_agnostic, lc, gc, LA_ATT, MID_ATT,
+                    eta, gamma, ef, class_agnostic, lc, gc,
                     debug, _run):
 
-    args = Args(dataset=dataset_source, dataset_t=dataset_target, imdb_name_target=[], cfg_file=cfg_file, net=net)
+    args = Args(dataset=dataset_source, dataset_t=dataset_target, cfg_file=cfg_file, net=net)
     args = set_dataset_args(args)
 
     args_val = Args(dataset=dataset_source, dataset_t=val_datasets, imdb_name_target=[], cfg_file=cfg_file, net=net)
@@ -104,11 +101,11 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    dataloader_s, dataloader_t, imdb = init_dataloaders_1s_mixed_mt(args, batch_size, num_workers)
+    dataloader_s, dataloader_t, imdb = init_dataloaders_1s_1t(args, batch_size, num_workers)
     val_dataloader_ts, val_imdb_ts = init_val_dataloaders_mt(args_val, 1, num_workers)
 
     session = 1
-    fasterRCNN, lr, optimizer, session, start_epoch, _ = init_htcn_model_optimizer(lr, LA_ATT, MID_ATT, class_agnostic, device, gc,
+    fasterRCNN, lr, optimizer, session, start_epoch, _ = init_saito_model_optimizer(lr, class_agnostic, device, gc,
                                                                                    imdb, lc, load_name, net, optimizer, resume,
                                                                                    session, start_epoch)
 
@@ -132,17 +129,20 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             adjust_learning_rate(optimizer, lr_decay_gamma)
             lr *= lr_decay_gamma
 
-        total_step = frcnn_utils.train_htcn_one_epoch(args, FL, total_step, dataloader_s, dataloader_t, iters_per_epoch, fasterRCNN, optimizer, device, logger)
+        total_step = frcnn_utils.train_saito_one_epoch(args, FL, total_step, dataloader_s, dataloader_t, iters_per_epoch, fasterRCNN, optimizer, device, logger)
         if isinstance(val_datasets, list):
             avg_ap = 0
             for i, val_dataloader_t in enumerate(val_dataloader_ts):
                 map = frcnn_utils.eval_one_dataloader(output_dir, val_dataloader_t, fasterRCNN, device, val_imdb_ts[i])
                 logger.log_scalar("map on {}".format(val_datasets[i]), map, total_step)
-                avg_ap += map
-            avg_ap /= len(val_dataloader_ts)
-            logger.log_scalar("avg map on", avg_ap , total_step)
+                avg_ap += map / len(val_dataloader_ts)
+            logger.log_scalar("avg map on", avg_ap, total_step)
             if avg_ap > best_ap:
                 best_ap = avg_ap
+                save_best_name = "{}_best_map.p_ds_{}_2_dt_{}_on_{}".format(_run._id, dataset_source, dataset_target, net)
+                if torch.cuda.device_count() > 1:
+
+                    torch.save(fasterRCNN.module, os.path.join())
 
 
         save_name = os.path.join(output_dir,
@@ -162,27 +162,14 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
     return best_ap.item()
 
 
-
 @ex.main
 def run_exp():
     return exp_htcn_mixed()
 
 if __name__ == "__main__":
 
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'dataset_source': "kitti_car_trainval",
-    #                        'dataset_target': ["cityscape_car", "watercolor_car"],
-    #                        'val_datasets': ["cityscape_car", "watercolor_car"],
-    #
-    #                        },
-    #        options={"--name": 'htcn_rmixed_kitti_2_city_water_res50'})
-
-    ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-                           'net': 'res50',
-                           'dataset_source':"wildtrack_C1",
-                           'dataset_target': ["wildtrack_C2", "wildtrack_C3", "wildtrack_C4", "wildtrack_C5", "wildtrack_C6", "wildtrack_C7"],
-                           'val_datasets': ["wildtrack_C2", "wildtrack_C3", "wildtrack_C4", "wildtrack_C5", "wildtrack_C6", "wildtrack_C7"],
-
-                           },
-           options={"--name": 'htcn_rmixed_wt_c1_2_rest_res50'})
+    ex.run(config_updates={'cfg_file': 'cfgs/res101.yml',
+                           'net': 'res101',
+                           'lr': 0.001,
+                           'lr_decay_step': [5]},
+           options={"--name": 'saito_kitti_2_city_res101'})

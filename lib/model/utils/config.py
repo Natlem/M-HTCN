@@ -240,6 +240,8 @@ __C.MOBILENET.DEPTH_MULTIPLIER = 1.
 ## Model path. Change the path based on your environment.
 __C.VGG_PATH = "./pretrained/vgg16_caffe.pth"
 __C.RESNET_PATH = "./pretrained/resnet101_caffe.pth"
+__C.RESNET50_PATH = "./pretrained/resnet50_caffe.pth"
+__C.RESNET152_PATH = "./pretrained/resnet152_caffe.pth"
 #
 # MISC
 #

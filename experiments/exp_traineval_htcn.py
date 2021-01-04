@@ -3,7 +3,7 @@ import os
 import frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
 from init_frcnn_utils import init_dataloaders_1s_1t, init_val_dataloaders_mt, init_val_dataloaders_1t, \
-    init_model_optimizer
+    init_htcn_model_optimizer
 
 vars = get_config_var()
 from sacred import Experiment
@@ -37,7 +37,7 @@ def exp_config():
     # Most of the hyper-parameters are already in the CFG here is in case we want to override
 
     # config file
-    cfg_file = "cfgs/vgg16.yml"
+    cfg_file = "cfgs/res101.yml"
     output_dir = "all_saves/htcn_single"
     dataset_source = "kitti_car_trainval"
     dataset_target = "cs_car"
@@ -45,7 +45,7 @@ def exp_config():
 
 
     device = "cuda"
-    net = "vgg16"
+    net = "res101"
     optimizer = "sgd"
     num_workers = 0
 
@@ -107,9 +107,9 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
     val_dataloader_ts, val_imdb_ts = init_val_dataloaders_mt(args_val, 1, num_workers)
 
     session = 1
-    fasterRCNN, lr, optimizer, session, start_epoch, _ = init_model_optimizer(lr, LA_ATT, MID_ATT, class_agnostic, device, gc,
-                                                                           imdb, lc, load_name, net, optimizer, resume,
-                                                                           session, start_epoch)
+    fasterRCNN, lr, optimizer, session, start_epoch, _ = init_htcn_model_optimizer(lr, LA_ATT, MID_ATT, class_agnostic, device, gc,
+                                                                                   imdb, lc, load_name, net, optimizer, resume,
+                                                                                   session, start_epoch)
 
     if torch.cuda.device_count() > 1:
         fasterRCNN = nn.DataParallel(fasterRCNN)
@@ -161,7 +161,7 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             'pooling_mode': cfg.POOLING_MODE,
             'class_agnostic': class_agnostic,
         }, save_name)
-    return best_ap
+    return best_ap.item()
 
 
 @ex.main
@@ -170,7 +170,12 @@ def run_exp():
 
 if __name__ == "__main__":
 
-    ex.run(config_updates={'cfg_file': 'cfgs/vgg16.yml',
+    ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
+                           'net': 'res50',
                            'lr': 0.001,
-                           'lr_decay_step': [5]},
-           options={"--name": 'htcn_kitti_2_city_vgg16'})
+                           'lr_decay_step': [5],
+                           'dataset_source': 'voc_0712',
+                           'dataset_target': 'comic',
+                           'val_datasets': ['comic']},
+
+           options={"--name": 'htcn_voc_2_comic_res50'})

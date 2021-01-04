@@ -251,8 +251,8 @@ def train_htcn_one_epoch_mt_seq_binary_fast_pw_bary_no_grad_teachers(args, FL, t
         rois, cls_prob, bbox_pred, \
         rpn_loss_cls, rpn_loss_box, \
         RCNN_loss_cls, RCNN_loss_bbox, \
-        rois_label, out_d_pixel, out_d, out_d_mid, out_d_ins, _, _, s_feat = fasterRCNN(im_data, im_info, gt_boxes,
-                                                                                        num_boxes, with_feat=True)
+        rois_label, out_d_pixel, out_d, out_d_mid, out_d_ins, _, _, s_feat, s_s_mask_batch = fasterRCNN(im_data, im_info, gt_boxes,
+                                                                                        num_boxes, with_feat=True, is_sup=True)
 
         loss = rpn_loss_cls.mean() + rpn_loss_box.mean() \
                + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
@@ -302,11 +302,12 @@ def train_htcn_one_epoch_mt_seq_binary_fast_pw_bary_no_grad_teachers(args, FL, t
             gt_boxes_t = torch.zeros((1, 1, 5)).to(device)
             num_boxes_t = torch.zeros([1]).to(device)
 
-            out_d_pixel, out_d, out_d_mid, out_d_ins, _, _, bf_1t = fasterRCNN(im_data_t, im_info_t, gt_boxes_t, num_boxes_t,
-                                                                               target=True, with_feat=True)
+            out_d_pixel, out_d, out_d_mid, out_d_ins, _, _, s_bf_1t, s_t_mask_batches = fasterRCNN(im_data_t, im_info_t, gt_boxes_t, num_boxes_t,
+                                                                               target=True, with_feat=True, is_sup=True)
 
-            _, _, _, _, _, _, bf_1s = teachers[i](im_data, im_info, gt_boxes, num_boxes,
-                                                                               target=True, with_feat=True)
+            with torch.no_grad():
+                _, _, _, _, _, _, t_bf_1s, t_mask = teachers[i](im_data, im_info, gt_boxes, num_boxes,
+                                                                                   target=True, with_feat=True, is_sup=True)
 
 
             s_feat_list.append(bf_1s.detach().mean([2, 3]).detach())

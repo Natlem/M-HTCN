@@ -4,7 +4,7 @@ import frcnn_utils
 import init_frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
 from init_frcnn_utils import init_dataloaders_1s_1t, init_val_dataloaders_mt, init_val_dataloaders_1t, \
-    init_model_optimizer
+    init_htcn_model_optimizer
 
 vars = get_config_var()
 from sacred import Experiment
@@ -153,5 +153,16 @@ def run_exp():
 
 if __name__ == "__main__":
 
-    ex.run(config_updates={'cfg_file': 'cfgs/vgg16.yml'},
-           options={"--name": 'htcn_source_train_wildtrack_c1_2_rest_vgg16'})
+    ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
+                           'net': 'res50',
+                           'dataset_source':"voc_0712",
+                            'val_datasets': ["watercolor", "clipart", "comic"],
+                           },
+           options={"--name": 'htcn_source_train_voc_2_wcc_res50'})
+
+    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
+    #                        'net': 'res50',
+    #                        'dataset_source':"wildtrack_C1",
+    #                         'val_datasets': ["wildtrack_C2", "wildtrack_C3", "wildtrack_C4", "wildtrack_C5", "wildtrack_C6", "wildtrack_C7"],
+    #                        },
+    #        options={"--name": 'htcn_source_train_wildtrack_c1_2_rest_res50'})
