@@ -8,7 +8,6 @@ from model.rpn.bbox_transform import bbox_transform_inv
 from model.rpn.bbox_transform import clip_boxes
 from model.roi_layers import nms
 from torch.nn import functional as F
-from model.faster_rcnn.wd import gradient_penalty
 from model.faster_rcnn import mmd as mmd
 from model.faster_rcnn.faster_rcnn_HTCN import _fasterRCNN as frcnn_htcn
 from model.faster_rcnn.faster_rcnn import _fasterRCNN as frcnn_no_da

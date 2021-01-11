@@ -19,7 +19,8 @@ from model.roi_layers import ROIAlign, ROIPool
 from model.rpn.proposal_target_layer_cascade import _ProposalTargetLayer
 import time
 import pdb
-from model.utils.net_utils import _smooth_l1_loss, _crop_pool_layer, _affine_grid_gen, _affine_theta,grad_reverse, local_attention, middle_attention
+from model.utils.net_utils import _smooth_l1_loss, _crop_pool_layer, _affine_grid_gen, _affine_theta, \
+    grad_reverse, local_attention, middle_attention
 
 class _fasterRCNN(nn.Module):
     """ faster RCNN """
@@ -45,15 +46,10 @@ class _fasterRCNN(nn.Module):
         self.RCNN_roi_pool = ROIPool((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0 / 16.0)
         self.RCNN_roi_align = ROIAlign((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0 / 16.0, 0)
 
-
-
-        # self.grid_size = cfg.POOLING_SIZE * 2 if cfg.CROP_RESIZE_WITH_MAX_POOL else cfg.POOLING_SIZE
-        # self.RCNN_roi_crop = _RoICrop()
-
     def get_channel_num(self):
 
         return [self.RCNN_base1[-1][-1].conv1.in_channels, self.RCNN_base2[-1][-1].conv1.in_channels,
-                self.RCNN_base3[-1][-1].conv1.in_channels]
+                self.RCNN_base3[-1][-1].conv1.in_channels, self.RCNN_rpn.RPN_Conv.out_channels]
     def get_bn_before_relu(self):
 
         if isinstance(self.RCNN_base1[-1][0], Bottleneck):
@@ -110,8 +106,10 @@ class _fasterRCNN(nn.Module):
             domain_p = self.netD(grad_reverse(base_feat, lambd=eta))
 
 
-
-        rois, rpn_loss_cls, rpn_loss_bbox, mask_batch   = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes, is_sup)
+        if with_feat:
+            rois, rpn_loss_cls, rpn_loss_bbox, rpn_c1_feat = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes, with_feat=with_feat)
+        else:
+            rois, rpn_loss_cls, rpn_loss_bbox, mask_batch = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes, is_sup=is_sup)
 
         # if it is training phrase, then use ground trubut bboxes for refining
         if self.training and not target:
@@ -156,9 +154,9 @@ class _fasterRCNN(nn.Module):
         if target:
 
             if is_sup:
-                return d_pixel, domain_p, domain_mid, d_ins, base_feat, mask_batch #,base_feat1, base_feat2,
+                return d_pixel, domain_p, domain_mid, d_ins, base_feat, mask_batch #, base_feat1, base_feat2,
             if with_feat:
-                return d_pixel, domain_p, domain_mid, d_ins, base_feat #,base_feat1, base_feat2,
+                return d_pixel, domain_p, domain_mid, d_ins, [base_feat1, base_feat2, base_feat, rpn_c1_feat]
             return d_pixel, domain_p, domain_mid, d_ins
 
         pooled_feat = torch.cat((feat, pooled_feat), 1)
@@ -190,8 +188,8 @@ class _fasterRCNN(nn.Module):
         if is_sup:
             return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label, d_pixel, domain_p, domain_mid, d_ins, base_feat, mask_batch
         if with_feat:
-            return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label, d_pixel, domain_p, domain_mid, d_ins, base_feat#, base_feat1, base_feat2  # ,diff
-        return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label,d_pixel, domain_p,domain_mid, d_ins#,diff
+            return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label, d_pixel, domain_p, domain_mid, d_ins, [base_feat1, base_feat2, base_feat, rpn_c1_feat]
+        return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label,d_pixel, domain_p,domain_mid, d_ins
 
     def _init_weights(self):
         def normal_init(m, mean, stddev, truncated=False):

@@ -55,12 +55,13 @@ class _RPN(nn.Module):
         )
         return x
 
-    def forward(self, base_feat, im_info, gt_boxes, num_boxes, is_sup=False):
+    def forward(self, base_feat, im_info, gt_boxes, num_boxes, is_sup=False, with_feat=False):
 
         batch_size = base_feat.size(0)
 
         # return feature map after convrelu layer
-        rpn_conv1 = F.relu(self.RPN_Conv(base_feat), inplace=True)
+        rpn_conv1_prerelu = self.RPN_Conv(base_feat)
+        rpn_conv1 = F.relu(rpn_conv1_prerelu)
         # get rpn classification score
         rpn_cls_score = self.RPN_cls_score(rpn_conv1)
 
@@ -109,5 +110,9 @@ class _RPN(nn.Module):
 
             if is_sup:
                 return rois, self.rpn_loss_cls, self.rpn_loss_box, rpn_data[-1]
+            if with_feat:
+                return rois, self.rpn_loss_cls, self.rpn_loss_box, rpn_conv1_prerelu
 
+        if with_feat:
+            return rois, self.rpn_loss_cls, self.rpn_loss_box, rpn_conv1_prerelu
         return rois, self.rpn_loss_cls, self.rpn_loss_box, None

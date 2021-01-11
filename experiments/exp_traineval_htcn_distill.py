@@ -66,7 +66,7 @@ def exp_config():
     resume = False
     load_name = ""
 
-    imitation_loss_weight = 0.01
+    imitation_loss_weight = 0.0004
     eta = 0.1
     gamma = 3
     ef = False
@@ -143,7 +143,7 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             lr *= lr_decay_gamma
 
         total_step = distill_frcnn_utils.train_htcn_one_epoch_single_target_kd(args, FL, total_step, dataloader_s, dataloader_t,
-                    iters_per_epoch, fasterRCNN, teacher, optimizer, device, imitation_loss_weight, epoch, 400, logger)
+                    iters_per_epoch, fasterRCNN, teacher, optimizer, device, imitation_loss_weight, epoch, 400, False, logger=logger)
 
         if isinstance(val_datasets, list):
             avg_ap = 0
@@ -188,8 +188,8 @@ if __name__ == "__main__":
                            'lr': 0.001,
                            'lr_decay_step': [5],
                            'dataset_source': 'voc_0712',
-                           'dataset_target': 'watercolor',
-                           'val_datasets': ['watercolor'],
-                           'teacher_pth': './all_saves/htcn_single_135/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth'},
+                           'dataset_target': 'clipart',
+                           'val_datasets': ['clipart'],
+                           'teacher_pth': './all_saves/htcn_single_139/target_clipart_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth'},
 
-           options={"--name": 'htcn_voc_2_watercolor_res101_2_50_source_distill'})
+           options={"--name": 'htcn_voc_2_clipart_res101_2_50_source_fn_distill'})

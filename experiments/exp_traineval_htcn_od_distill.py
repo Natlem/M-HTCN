@@ -32,6 +32,7 @@ from model.faster_rcnn.resnet_HTCN import resnet as htcn_resnet
 from model.faster_rcnn.vgg16 import vgg16 as n_vgg16
 from model.faster_rcnn.vgg16_HTCN import vgg16 as htcn_vgg16
 from model.faster_rcnn.vgg16_HTCN_mrpn import vgg16 as vgg16_mrpn
+from distiller import Distiller
 
 from model.utils.parser_func import set_dataset_args
 
@@ -118,9 +119,9 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
     teacher = init_frcnn_utils.init_model_only(device, "res101", htcn_resnet, imdb, teacher_pth, class_agnostic=class_agnostic, lc=lc,
                            gc=gc, la_attention=LA_ATT, mid_attention=MID_ATT)
 
-    fasterRCNN, lr, optimizer, session, start_epoch, optimizer_kd = init_frcnn_utils.init_htcn_model_optimizer(lr, LA_ATT, MID_ATT, class_agnostic, device, gc,
+    fasterRCNN, lr, optimizer, session, start_epoch, distill = init_frcnn_utils.init_htcn_model_optimizer_with_od(lr, LA_ATT, MID_ATT, class_agnostic, device, gc,
                                                                                    imdb, lc, load_name, net, optimizer, resume,
-                                                                                   session, start_epoch, with_aop=True)
+                                                                                   session, start_epoch, teacher, Distiller)
 
     if torch.cuda.device_count() > 1:
         fasterRCNN = nn.DataParallel(fasterRCNN)
@@ -143,7 +144,7 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             lr *= lr_decay_gamma
 
         total_step = distill_frcnn_utils.train_htcn_one_epoch_single_target_od(args, FL, total_step, dataloader_s, dataloader_t,
-                    iters_per_epoch, fasterRCNN, teacher, optimizer, optimizer_kd, device, imitation_loss_weight, epoch, 400, logger)
+                    iters_per_epoch, fasterRCNN, teacher, distill, optimizer, device, logger)
 
         if isinstance(val_datasets, list):
             avg_ap = 0
@@ -188,8 +189,19 @@ if __name__ == "__main__":
                            'lr': 0.001,
                            'lr_decay_step': [5],
                            'dataset_source': 'voc_0712',
-                           'dataset_target': 'watercolor',
-                           'val_datasets': ['watercolor'],
-                           'teacher_pth': './all_saves/htcn_single_135/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth'},
+                           'dataset_target': 'clipart',
+                           'val_datasets': ['clipart'],
+                           'teacher_pth': './all_saves/htcn_single_139/target_clipart_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth'},
 
-           options={"--name": 'htcn_voc_2_watercolor_res101_2_50_source_distill'})
+           options={"--name": 'htcn_voc_2_watercolor_res101_2_50_od_0.05_source_target_distill'})
+
+    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
+    #                        'net': 'res50',
+    #                        'lr': 0.001,
+    #                        'lr_decay_step': [5],
+    #                        'dataset_source': 'voc_0712',
+    #                        'dataset_target': 'watercolor',
+    #                        'val_datasets': ['watercolor'],
+    #                        'teacher_pth': './all_saves/htcn_single_139/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth'},
+    #
+    #        options={"--name": 'htcn_voc_2_watercolor_res101_2_50_od_source_target_distill'})
