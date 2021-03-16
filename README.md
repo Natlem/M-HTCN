@@ -52,7 +52,7 @@ CUDA_VISIBLE_DEVICES=$GPU_ID \
        python experiments/exp_traineval_htcn_inc_mask.py
 ```
 
-Example of how to edit hyper-parameters etc... in **exp_traineval_htcn.py**:
+Example of how to edit hyper-parameters etc... in **exp_traineval_htcn.py**.
 Original:
 ```
 if __name__ == "__main__":
