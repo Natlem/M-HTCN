@@ -33,7 +33,7 @@ Download them and write the path in **__C.VGG_PATH** and **__C.RESNET50_PATH** a
 
 ## Train Example
 
-Don't forget to install sacred, you cannot run our code without it.
+**Don't forget to install sacred**, you cannot run our code without it.
 To run the first step of **Cityscape** -> **FoggyCityscape** on VGG16 with our hyper-parameters :
 
 ```
