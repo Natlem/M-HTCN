@@ -95,5 +95,5 @@ CUDA_VISIBLE_DEVICES=$GPU_ID \
 
 ### Trained Model
 
-**Model** of **Pascal** -> **Clipart** -> **Watercolor**: [Link](https://drive.google.com/file/d/1nDp1bEPaDB-I5nBBjGc3TfPd5etKxVaJ/view?usp=sharing)
-**Model** of **Pascal** -> **Clipart** -> **Watercolor** -> **Comic**: [Link](https://drive.google.com/file/d/1R4FwIoD-mOJ8SS_awZfBgDlY6AZvN3ox/view?usp=sharing)
+- **Model** of **Pascal** -> **Clipart** -> **Watercolor**: [Link](https://drive.google.com/file/d/1nDp1bEPaDB-I5nBBjGc3TfPd5etKxVaJ/view?usp=sharing)
+- **Model** of **Pascal** -> **Clipart** -> **Watercolor** -> **Comic**: [Link](https://drive.google.com/file/d/1R4FwIoD-mOJ8SS_awZfBgDlY6AZvN3ox/view?usp=sharing)
