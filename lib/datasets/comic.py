@@ -44,12 +44,14 @@ class comic(imdb):
         self._image_set = image_set
         self._devkit_path = cfg_d.COMIC
         self._data_path = os.path.join(self._devkit_path, 'VOC' + self._year)
+        # self._classes = ('__background__',  # always index 0
+        #                  'aeroplane', 'bicycle', 'bird', 'boat',
+        #                  'bottle', 'bus', 'car', 'cat', 'chair',
+        #                  'cow', 'diningtable', 'dog', 'horse',
+        #                  'motorbike', 'person', 'pottedplant',
+        #                  'sheep', 'sofa', 'train', 'tvmonitor')
         self._classes = ('__background__',  # always index 0
-                         'aeroplane', 'bicycle', 'bird', 'boat',
-                         'bottle', 'bus', 'car', 'cat', 'chair',
-                         'cow', 'diningtable', 'dog', 'horse',
-                         'motorbike', 'person', 'pottedplant',
-                         'sheep', 'sofa', 'train', 'tvmonitor')
+                         'bicycle', 'bird', 'car', 'cat', 'dog', 'person')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
 
         self._image_ext = '.jpg'
@@ -321,6 +323,7 @@ class comic(imdb):
         # The PASCAL VOC metric changed in 2010
         use_07_metric = True if int(self._year) < 2010 else False
         print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
+        ap_per_class = {}
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
         for i, cls in enumerate(self._classes):
@@ -331,6 +334,7 @@ class comic(imdb):
                 filename, annopath, imagesetfile, cls, cachedir, ovthresh=0.5,
                 use_07_metric=use_07_metric)
             aps += [ap]
+            ap_per_class[cls] = ap
             print('AP for {} = {:.4f}'.format(cls, ap))
             with open(os.path.join(output_dir, 'eval_result.txt'), 'a') as result_f:
                 result_f.write('AP for {} = {:.4f}'.format(cls, ap) + '\n')
@@ -352,7 +356,7 @@ class comic(imdb):
         # print('Recompute with `./tools/reval.py --matlab ...` for your paper.')
         # print('-- Thanks, The Management')
         # print('--------------------------------------------------------------')
-        return np.mean(aps)
+        return np.mean(aps), ap_per_class
 
     def _do_matlab_eval(self, output_dir='output'):
         print('-----------------------------------------------------')
@@ -371,7 +375,7 @@ class comic(imdb):
 
     def evaluate_detections(self, all_boxes, output_dir):
         self._write_voc_results_file(all_boxes)
-        map = self._do_python_eval(output_dir)
+        map, ap_per_class = self._do_python_eval(output_dir)
         if self.config['matlab_eval']:
             self._do_matlab_eval(output_dir)
         if self.config['cleanup']:
@@ -380,7 +384,7 @@ class comic(imdb):
                     continue
                 filename = self._get_voc_results_file_template().format(cls)
                 os.remove(filename)
-        return map
+        return map, ap_per_class
 
     def competition_mode(self, on):
         if on:

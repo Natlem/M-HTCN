@@ -1,9 +1,9 @@
 import os
 
 import frcnn_utils
-import distill_frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
-import init_frcnn_utils
+from init_frcnn_utils import init_dataloaders_1s_1t, init_val_dataloaders_mt, init_val_dataloaders_1t, \
+    init_htcn_model, init_optimizer
 
 vars = get_config_var()
 from sacred import Experiment
@@ -26,13 +26,6 @@ import torch.nn as nn
 from model.utils.config import cfg, cfg_from_file, cfg_from_list
 from model.utils.net_utils import adjust_learning_rate, save_checkpoint, FocalLoss, EFocalLoss
 
-from model.faster_rcnn.resnet import resnet as n_resnet
-from model.faster_rcnn.resnet_saito import resnet as s_resnet
-from model.faster_rcnn.resnet_HTCN import resnet as htcn_resnet
-from model.faster_rcnn.vgg16 import vgg16 as n_vgg16
-from model.faster_rcnn.vgg16_HTCN import vgg16 as htcn_vgg16
-from model.faster_rcnn.vgg16_HTCN_mrpn import vgg16 as vgg16_mrpn
-from distiller import Distiller
 
 from model.utils.parser_func import set_dataset_args
 
@@ -55,7 +48,6 @@ def exp_config():
     net = "res101"
     optimizer = "sgd"
     num_workers = 0
-    teacher_pth = ''
 
     lr = 0.001
     batch_size = 1
@@ -66,9 +58,9 @@ def exp_config():
 
     resume = False
     load_name = ""
+    pretrained = True #Whether to use pytorch models (FAlse) or caffe model (True)
 
-    imitation_loss_weight = 0.01
-    eta = 0.1
+    eta = 1
     gamma = 3
     ef = False
     class_agnostic = False
@@ -82,10 +74,10 @@ def exp_config():
 
 @ex.capture
 def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_datasets,
-                    device, net, optimizer, num_workers, teacher_pth,
+                    device, net, optimizer, num_workers,
                     lr, batch_size, start_epoch, max_epochs, lr_decay_gamma, lr_decay_step,
-                    resume, load_name,
-                    imitation_loss_weight, eta, gamma, ef, class_agnostic, lc, gc, LA_ATT, MID_ATT,
+                    resume, load_name, pretrained,
+                    eta, gamma, ef, class_agnostic, lc, gc, LA_ATT, MID_ATT,
                     debug, _run):
 
     args = Args(dataset=dataset_source, dataset_t=dataset_target, cfg_file=cfg_file, net=net)
@@ -93,6 +85,10 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
 
     args_val = Args(dataset=dataset_source, dataset_t=val_datasets, imdb_name_target=[], cfg_file=cfg_file, net=net)
     args_val = set_dataset_args(args_val, test=True)
+
+    is_bgr = False
+    if net in ['res101', 'res50', 'res152', 'vgg16']:
+        is_bgr = True
 
 
     logger = LoggerForSacred(None, ex, False)
@@ -112,16 +108,13 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    dataloader_s, dataloader_t, imdb = init_frcnn_utils.init_dataloaders_1s_1t(args, batch_size, num_workers)
-    val_dataloader_ts, val_imdb_ts = init_frcnn_utils.init_val_dataloaders_mt(args_val, 1, num_workers)
+    dataloader_s, dataloader_t, imdb, imdb_t = init_dataloaders_1s_1t(args, batch_size, num_workers, is_bgr)
+    val_dataloader_ts, val_imdb_ts = init_val_dataloaders_mt(args_val, 1, num_workers, is_bgr)
 
     session = 1
-    teacher = init_frcnn_utils.init_model_only(device, "res101", htcn_resnet, imdb, teacher_pth, class_agnostic=class_agnostic, lc=lc,
-                           gc=gc, la_attention=LA_ATT, mid_attention=MID_ATT)
+    fasterRCNN = init_htcn_model(LA_ATT, MID_ATT, class_agnostic, device, gc, imdb, lc, load_name, net, pretrained=pretrained)
+    lr, optimizer, session, start_epoch = init_optimizer(lr, fasterRCNN, optimizer, resume, load_name, session, start_epoch, is_all_params=True)
 
-    fasterRCNN, lr, optimizer, session, start_epoch, distill = init_frcnn_utils.init_htcn_model_optimizer_with_od(lr, LA_ATT, MID_ATT, class_agnostic, device, gc,
-                                                                                   imdb, lc, load_name, net, optimizer, resume,
-                                                                                   session, start_epoch, teacher, Distiller)
 
     if torch.cuda.device_count() > 1:
         fasterRCNN = nn.DataParallel(fasterRCNN)
@@ -135,6 +128,17 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
 
     total_step = 0
     best_ap = 0.
+
+    # if isinstance(val_datasets, list):
+    #     avg_ap = 0
+    #     for i, val_dataloader_t in enumerate(val_dataloader_ts):
+    #         map = frcnn_utils.eval_one_dataloader(output_dir, val_dataloader_t, fasterRCNN, device, val_imdb_ts[i])
+    #         logger.log_scalar("map on {}".format(val_datasets[i]), map, 0)
+    #         avg_ap += map / len(val_dataloader_ts)
+    #     logger.log_scalar("avg map on", avg_ap, total_step)
+    #     if avg_ap > best_ap:
+    #         best_ap = avg_ap
+
     for epoch in range(start_epoch, max_epochs + 1):
         # setting to train mode
         fasterRCNN.train()
@@ -143,9 +147,7 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             adjust_learning_rate(optimizer, lr_decay_gamma)
             lr *= lr_decay_gamma
 
-        total_step = distill_frcnn_utils.train_htcn_one_epoch_single_target_od(args, FL, total_step, dataloader_s, dataloader_t,
-                    iters_per_epoch, fasterRCNN, teacher, distill, optimizer, device, logger)
-
+        total_step = frcnn_utils.train_htcn_one_epoch(args, FL, total_step, dataloader_s, dataloader_t, iters_per_epoch, fasterRCNN, optimizer, device, eta, logger)
         if isinstance(val_datasets, list):
             avg_ap = 0
             for i, val_dataloader_t in enumerate(val_dataloader_ts):
@@ -184,24 +186,69 @@ def run_exp():
 
 if __name__ == "__main__":
 
-    ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-                           'net': 'res50',
-                           'lr': 0.001,
-                           'lr_decay_step': [5],
-                           'dataset_source': 'voc_0712',
-                           'dataset_target': 'clipart',
-                           'val_datasets': ['clipart'],
-                           'teacher_pth': './all_saves/htcn_single_139/target_clipart_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth'},
-
-           options={"--name": 'htcn_voc_2_watercolor_res101_2_50_od_0.05_source_target_distill'})
+    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
+    #                        'lr': 0.0001,
+    #                        'lr_decay_step': [5],
+    #                        'max_epochs': 7,
+    #                        'net': 'res50',
+    #                        'pretrained': True,
+    #                        'load_name': './all_saves/htcn_single_313/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_1_total_step_10000.pth',
+    #                        'dataset_source': 'voc_0712',
+    #                        'dataset_target': 'clipart',
+    #                        'val_datasets': ['clipart', 'watercolor', 'comic']},
+    #
+    #        options={"--name": 'htcn_abl_inc_voc_comic_watercolor_2_clipart_res50_0.0001_lr_10k_313'})
 
     # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'lr': 0.001,
+    #                        'lr': 0.0001,
     #                        'lr_decay_step': [5],
+    #                        'max_epochs': 7,
+    #                        'net': 'res50',
+    #                        'pretrained': True,
+    #                        'load_name': "./all_saves/htcn_single_430/target_comic_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_4_total_step_40000.pth",
+    #                        'dataset_source': 'voc_0712',
+    #                        'dataset_target': 'clipart',
+    #                        'val_datasets': ['clipart', 'watercolor', 'comic']},
+    #
+    #        options={"--name": 'htcn_inc_voc_watercolor_comic_2_clipart_res50_60k_209'})
+
+
+    ex.run(config_updates={'cfg_file': 'cfgs/vgg16.yml',
+                           'lr': 0.0001,
+                           'lr_decay_step': [5],
+                           'max_epochs': 7,
+                           'net': 'vgg16',
+                           'pretrained': True,
+                           'eta': 1,
+                           'load_name':  "./all_saves/htcn_single_444/target_cs_fg_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth",
+                           'dataset_source': 'cs',
+                           'dataset_target': 'cs_rain',
+                           'val_datasets': ['cs_fg', 'cs_rain']},
+
+           options={"--name": 'htcn_inc_cs_csfg_2_cs_rain_vgg16_mat_60k_444'})
+
+    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
+    #                        'lr': 0.0001,
+    #                        'lr_decay_step': [5],
+    #                        'max_epochs': 7,
+    #                        'net': 'res50',
+    #                        'pretrained': True,
+    #                        'load_name': './all_saves/htcn_single_215/target_comic_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_4_total_step_40000.pth',
     #                        'dataset_source': 'voc_0712',
     #                        'dataset_target': 'watercolor',
-    #                        'val_datasets': ['watercolor'],
-    #                        'teacher_pth': './all_saves/htcn_single_139/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth'},
+    #                        'val_datasets': ['comic', 'watercolor']},
     #
-    #        options={"--name": 'htcn_voc_2_watercolor_res101_2_50_od_source_target_distill'})
+    #        options={"--name": 'htcn_inc_voc_comic_2_watercolor_res50_40k_216'})
+
+    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
+    #                        'lr': 0.001,
+    #                        'lr_decay_step': [5],
+    #                        'max_epochs': 7,
+    #                        'net': 'res101',
+    #                        'pretrained': True,
+    #                        'load_name': './all_saves/htcn_single_208/target_clipart_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_4_total_step_40000.pth',
+    #                        'dataset_source': 'voc_0712',
+    #                        'dataset_target': 'watercolor',
+    #                        'val_datasets': ['clipart', 'watercolor']},
+    #
+    #        options={"--name": 'htcn_inc_voc_clipart_2_watercolor_res101_0.0001_lr_40k_208'})

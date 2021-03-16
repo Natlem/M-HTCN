@@ -12,7 +12,7 @@ import math
 import torch.utils.model_zoo as model_zoo
 import pdb
 
-from model.faster_rcnn.resnet import resnet50, resnet101, resnet152
+from model.faster_rcnn.resnet import resnet18, resnet34, resnet50, resnet101, resnet152
 
 def conv3x3(in_planes, out_planes, stride=1):
   "3x3 convolution with padding"
@@ -92,9 +92,9 @@ class netD_m_pixel(nn.Module):
         return F.sigmoid(x)
 
 class netD_pixel(nn.Module):
-    def __init__(self,context=False):
+    def __init__(self,context=False, in_chan=256):
         super(netD_pixel, self).__init__()
-        self.conv1 = nn.Conv2d(256, 256, kernel_size=1, stride=1,
+        self.conv1 = nn.Conv2d(in_chan, 256, kernel_size=1, stride=1,
                   padding=0, bias=False)
         self.conv2 = nn.Conv2d(256, 128, kernel_size=1, stride=1,
                                padding=0, bias=False)
@@ -128,9 +128,9 @@ class netD_pixel(nn.Module):
           return F.sigmoid(x)
 
 class netD_mid(nn.Module):
-    def __init__(self,context=False):
+    def __init__(self,context=False, in_chan=512):
         super(netD_mid, self).__init__()
-        self.conv1 = conv3x3(512, 512, stride=2)
+        self.conv1 = conv3x3(in_chan, 512, stride=2)
         self.bn1 = nn.BatchNorm2d(512)
         self.conv2 = conv3x3(512, 128, stride=2)
         self.bn2 = nn.BatchNorm2d(128)
@@ -154,9 +154,9 @@ class netD_mid(nn.Module):
 
 
 class netD(nn.Module):
-    def __init__(self,context=False):
+    def __init__(self,context=False, in_chan=1024):
         super(netD, self).__init__()
-        self.conv1 = conv3x3(1024, 512, stride=2)
+        self.conv1 = conv3x3(in_chan, 512, stride=2)
         self.bn1 = nn.BatchNorm2d(512)
         self.conv2 = conv3x3(512, 128, stride=2)
         self.bn2 = nn.BatchNorm2d(128)
@@ -240,6 +240,9 @@ class resnet(_fasterRCNN):
       self.model_path = cfg.RESNET50_PATH
     if self.layers == 152:
       self.model_path = cfg.RESNET152_PATH
+    if self.layers == 34 or self.layers == 18:
+        self.dout_base_model = 256
+    self.netD_pixels = None
 
 
     _fasterRCNN.__init__(self, classes, class_agnostic,lc,gc, la_attention, mid_attention)
@@ -247,26 +250,46 @@ class resnet(_fasterRCNN):
   def _init_modules(self):
 
     resnet = resnet101()
+
     if self.layers == 50:
       resnet = resnet50()
     elif self.layers == 152:
       resnet = resnet152()
-    if self.pretrained == True:
+    if self.pretrained == True and (self.layers in [50, 101, 152]):
       print("Loading pretrained weights from %s" %(self.model_path))
       state_dict = torch.load(self.model_path)
-      resnet.load_state_dict({k:v for k,v in state_dict.items() if k in resnet.state_dict()})
+      resnet.load_state_dict({k:v for k,v in state_dict.items() if k in resnet.state_dict()}, strict=False)
+      in_chan = 256
+    elif self.layers in [50, 101, 152]:
+        print("Loading pretrained weights from pytorch")
+        resnet = resnet50(pretrained=True)
+        in_chan = 256
+    else:
+        if self.layers == 18:
+            resnet = resnet18(pretrained=True)
+        if self.layers == 34:
+            resnet = resnet34(pretrained=True)
+        in_chan = 64
+
     # Build resnet.
     self.RCNN_base1 = nn.Sequential(resnet.conv1, resnet.bn1,resnet.relu,
       resnet.maxpool,resnet.layer1)
     self.RCNN_base2 = nn.Sequential(resnet.layer2)
     self.RCNN_base3 = nn.Sequential(resnet.layer3)
 
-    self.netD_pixel = netD_pixel(context=self.lc)
-    self.netD = netD(context=self.gc)
-    self.netD_mid = netD_mid(context=self.gc)
+    if self.layers in [50, 101, 152]:
+        self.netD_pixel = netD_pixel(context=self.lc)
+        self.netD = netD(context=self.gc)
+        self.netD_mid = netD_mid(context=self.gc)
+        feat_d = 2048
+    else:
+        self.netD_pixel = netD_pixel(context=self.lc, in_chan=in_chan)
+        self.netD = netD(context=self.gc, in_chan=256)
+        self.netD_mid = netD_mid(context=self.gc, in_chan=in_chan*2)
+        feat_d = 512
 
     self.RCNN_top = nn.Sequential(resnet.layer4)
-    feat_d = 2048
+
     feat_d2 = 384
     feat_d3 = 1024
 
@@ -306,6 +329,58 @@ class resnet(_fasterRCNN):
     self.RCNN_base2.apply(set_bn_fix)
     self.RCNN_base3.apply(set_bn_fix)
     self.RCNN_top.apply(set_bn_fix)
+
+  def re_init_da_layers(self, device):
+      if self.layers in [50, 101, 152]:
+          self.netD_pixel = netD_pixel(context=self.lc).to(device)
+          self.netD = netD(context=self.gc).to(device)
+          self.netD_mid = netD_mid(context=self.gc).to(device)
+          feat_d = 2048
+
+      else:
+          in_chan = 64
+          self.netD_pixel = netD_pixel(context=self.lc, in_chan=in_chan).to(device)
+          self.netD = netD(context=self.gc, in_chan=256).to(device)
+          self.netD_mid = netD_mid(context=self.gc, in_chan=in_chan * 2).to(device)
+          feat_d = 512
+
+      feat_d2 = 384
+      feat_d3 = 1024
+      self.RandomLayer = RandomLayer([feat_d, feat_d2], feat_d3)
+      self.RandomLayer.cuda()
+
+      self.netD_da = netD_da(feat_d3).to(device)
+  def init_new_adv(self, device):
+      if self.netD_pixels is None:
+          self.netD_pixels = nn.ModuleList([self.netD_pixel])
+          self.netDs = nn.ModuleList([self.netD])
+          self.netD_mids = nn.ModuleList([self.netD_mid])
+          self.RandomLayers = nn.ModuleList([self.RandomLayer])
+          self.netD_das = nn.ModuleList([self.netD_da])
+
+      if self.layers in [50, 101, 152]:
+          anetD_pixel = netD_pixel(context=self.lc).to(device)
+          anetD = netD(context=self.gc).to(device)
+          anetD_mid = netD_mid(context=self.gc).to(device)
+          feat_d = 2048
+      else:
+          in_chan = 64
+          anetD_pixel = netD_pixel(context=self.lc, in_chan=in_chan).to(device)
+          anetD = netD(context=self.gc, in_chan=256).to(device)
+          anetD_mid = netD_mid(context=self.gc, in_chan=in_chan * 2).to(device)
+          feat_d = 512
+
+      feat_d2 = 384
+      feat_d3 = 1024
+      rl = RandomLayer([feat_d, feat_d2], feat_d3)
+      rl.cuda()
+      anetD_da = netD_da(feat_d3).to(device)
+      self.netD_pixels.append(anetD_pixel)
+      self.netDs.append(anetD)
+      self.netD_mids.append(anetD_mid)
+      self.RandomLayers.append(rl)
+      self.netD_das.append(anetD_da)
+
 
   def train(self, mode=True):
     # Override train so that the training mode is set as we want

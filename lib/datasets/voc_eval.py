@@ -100,7 +100,8 @@ def voc_eval(detpath,
     # first load gt
     if not os.path.isdir(cachedir):
         os.mkdir(cachedir)
-    imagesetfile_p = Path('%s_annots.pkl' % imagesetfile).name
+    is_07 = "07_" if use_07_metric else "12_"
+    imagesetfile_p = is_07 + Path('%s_annots.pkl' % imagesetfile).name
     cachefile = os.path.join(cachedir, imagesetfile_p)
     # read list of images
     with open(imagesetfile, 'r') as f:

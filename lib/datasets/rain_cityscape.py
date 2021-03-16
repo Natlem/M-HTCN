@@ -37,12 +37,12 @@ except NameError:
 
 # <<<< obsolete
 
-class cityscape(imdb):
+class rain_cityscape(imdb):
     def __init__(self, image_set, year, devkit_path=None):
-        imdb.__init__(self, 'cs_' + year + '_' + image_set)
+        imdb.__init__(self, 'cs_rain_' + year + '_' + image_set)
         self._year = year
         self._image_set = image_set
-        self._devkit_path = cfg_d.CITYSCAPE
+        self._devkit_path = cfg_d.RAINCITY
         self._data_path = os.path.join(self._devkit_path, 'VOC' + self._year)
         self._classes = ('__background__',  # always index 0
                          'bus', 'bicycle', 'car', 'motorcycle', 'person', 'rider', 'train', 'truck')

@@ -13,7 +13,7 @@ from imageio import imread
 from model.utils.config import cfg
 from model.utils.blob import prep_im_for_blob, im_list_to_blob
 import pdb
-def get_minibatch(roidb, num_classes):
+def get_minibatch(roidb, num_classes, normalize=True, is_bgr=True):
   """Given a roidb, construct a minibatch sampled from it."""
   num_images = len(roidb)
   # Sample random scales to use for each image in this batch
@@ -24,7 +24,7 @@ def get_minibatch(roidb, num_classes):
     format(num_images, cfg.TRAIN.BATCH_SIZE)
 
   # Get the input image blob, formatted for caffe
-  im_blob, im_scales = _get_image_blob(roidb, random_scale_inds)
+  im_blob, im_scales = _get_image_blob(roidb, random_scale_inds, normalize, is_bgr)
 
   blobs = {'data': im_blob}
 
@@ -51,7 +51,7 @@ def get_minibatch(roidb, num_classes):
 
   return blobs
 
-def _get_image_blob(roidb, scale_inds):
+def _get_image_blob(roidb, scale_inds, normalize=True, is_bgr=True):
   """Builds an input blob from the images in the roidb at the specified
   scales.
   """
@@ -68,13 +68,14 @@ def _get_image_blob(roidb, scale_inds):
       im = np.concatenate((im,im,im), axis=2)
     # flip the channel, since the original one using cv2
     # rgb -> bgr
-    im = im[:,:,::-1]
+    if is_bgr:
+      im = im[:,:,::-1]
 
     if roidb[i]['flipped']:
       im = im[:, ::-1, :]
     target_size = cfg.TRAIN.SCALES[scale_inds[i]]
     im, im_scale = prep_im_for_blob(im, cfg.PIXEL_MEANS, target_size,
-                    cfg.TRAIN.MAX_SIZE)
+                    cfg.TRAIN.MAX_SIZE, normalize, is_bgr)
     im_scales.append(im_scale)
     processed_ims.append(im)
 

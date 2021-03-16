@@ -17,7 +17,7 @@ from model.utils.config import cfg
 
 
 class vgg16(_fasterRCNN):
-  def __init__(self, classes, pretrained=False, class_agnostic=False):
+  def __init__(self, classes, pretrained=False, class_agnostic=False, **kwargs):
     self.model_path = cfg.VGG_PATH
     self.dout_base_model = 512
     self.pretrained = pretrained

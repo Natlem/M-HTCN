@@ -32,13 +32,15 @@ class LoggerForSacred():
             print("{}:{}/{}".format(metrics_name, value, step))
 
 
-def get_config_var():
+def get_config_var(is_eval=False):
     if not os.path.exists('.env'):
         raise FileNotFoundError('.env not found')
+
     load_dotenv()
+
     vars = {}
     vars["SACRED_URL"] = os.getenv("SACRED_URL")
-    vars["SACRED_DB"] = os.getenv("SACRED_DB")
+    vars["SACRED_DB"] = os.getenv("SACRED_DB") if not is_eval else os.getenv("SACRED_DB")  + '_eval'
     vars["VISDOM_PORT"] = os.getenv("VISDOM_PORT")
     vars["SAVE_DIR"] = os.getenv("SAVE_DIR")
     vars["GMAIL_USER"] = os.getenv("GMAIL_USER")

@@ -44,12 +44,14 @@ class pascal_voc(imdb):
         self._image_set = image_set
         self._devkit_path = cfg_d.PASCAL
         self._data_path = os.path.join(self._devkit_path, 'VOC' + self._year)
+        # self._classes = ('__background__',  # always index 0
+        #                  'aeroplane', 'bicycle', 'bird', 'boat',
+        #                  'bottle', 'bus', 'car', 'cat', 'chair',
+        #                  'cow', 'diningtable', 'dog', 'horse',
+        #                  'motorbike', 'person', 'pottedplant',
+        #                  'sheep', 'sofa', 'train', 'tvmonitor')
         self._classes = ('__background__',  # always index 0
-                         'aeroplane', 'bicycle', 'bird', 'boat',
-                         'bottle', 'bus', 'car', 'cat', 'chair',
-                         'cow', 'diningtable', 'dog', 'horse',
-                         'motorbike', 'person', 'pottedplant',
-                         'sheep', 'sofa', 'train', 'tvmonitor')
+                         'bicycle', 'bird', 'car', 'cat', 'dog', 'person')
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
 
         self._image_ext = '.jpg'
@@ -119,7 +121,10 @@ class pascal_voc(imdb):
 
         This function loads/saves from/to a cache file to speed up future calls.
         """
-        cache_file = os.path.join(self.cache_path, self.name + '_gt_roidb.pkl')
+        if len(self._classes) != 21:
+            cache_file = os.path.join(self.cache_path, self.name + '_{}_gt_roidb.pkl'.format(len(self._classes)))
+        else:
+            cache_file = os.path.join(self.cache_path, self.name + '_gt_roidb.pkl')
         print(cache_file)
         if os.path.exists(cache_file):
             with open(cache_file, 'rb') as fid:
@@ -142,8 +147,13 @@ class pascal_voc(imdb):
 
         This function loads/saves from/to a cache file to speed up future calls.
         """
-        cache_file = os.path.join(self.cache_path,
-                                  self.name + '_selective_search_roidb.pkl')
+
+        if len(self._classes) != 21:
+            cache_file = os.path.join(self.cache_path,
+                                      self.name + '_{}_selective_search_roidb.pkl'.format(len(self._classes)))
+        else:
+            cache_file = os.path.join(self.cache_path,
+                                      self.name + '_selective_search_roidb.pkl')
 
         if os.path.exists(cache_file):
             with open(cache_file, 'rb') as fid:
@@ -209,15 +219,17 @@ class pascal_voc(imdb):
         filename = os.path.join(self._data_path, 'Annotations', index + '.xml')
         tree = ET.parse(filename)
         objs = tree.findall('object')
-        # if not self.config['use_diff']:
-        #     # Exclude the samples labeled as difficult
-        #     non_diff_objs = [
-        #         obj for obj in objs if int(obj.find('difficult').text) == 0]
-        #     # if len(non_diff_objs) != len(objs):
-        #     #     print 'Removed {} difficult objects'.format(
-        #     #         len(objs) - len(non_diff_objs))
-        #     objs = non_diff_objs
-        num_objs = len(objs)
+
+        count = 0
+        for ix, obj in enumerate(objs):
+            # bboxe = obj.find('bndbox')
+            try:
+                cls = self._class_to_ind[obj.find('name').text.lower().strip()]
+                count += 1
+            except:
+                # print(filename)
+                continue
+        num_objs = count
 
         boxes = np.zeros((num_objs, 4), dtype=np.uint16)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
@@ -231,7 +243,14 @@ class pascal_voc(imdb):
         # #print((int(tree.find('width').text)))
         # seg_map = np.zeros((int(img_size.find('width').text),int(img_size.find('height').text)))
         # Load object bounding boxes into a data frame.
+        count = 0
         for ix, obj in enumerate(objs):
+
+            try:
+                cls = self._class_to_ind[obj.find('name').text.lower().strip()]
+            except:
+                continue
+
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
             x1 = max(float(bbox.find('xmin').text) - 1, 0)
@@ -241,14 +260,15 @@ class pascal_voc(imdb):
 
             diffc = obj.find('difficult')
             difficult = 0 if diffc == None else int(diffc.text)
-            ishards[ix] = difficult
+            ishards[count] = difficult
 
-            cls = self._class_to_ind[obj.find('name').text.lower().strip()]
-            boxes[ix, :] = [x1, y1, x2, y2]
+
+            boxes[count, :] = [x1, y1, x2, y2]
             # seg_map[int(x1):int(x2),int(y1):int(y2)] = cls
-            gt_classes[ix] = cls
-            overlaps[ix, cls] = 1.0
-            seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
+            gt_classes[count] = cls
+            overlaps[count, cls] = 1.0
+            seg_areas[count] = (x2 - x1 + 1) * (y2 - y1 + 1)
+            count += 1
 
         overlaps = scipy.sparse.csr_matrix(overlaps)
 
@@ -308,6 +328,7 @@ class pascal_voc(imdb):
         # The PASCAL VOC metric changed in 2010
         use_07_metric = True if int(self._year) < 2010 else False
         print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
+        ap_per_class = {}
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
         for i, cls in enumerate(self._classes):
@@ -319,26 +340,15 @@ class pascal_voc(imdb):
                 use_07_metric=use_07_metric)
             aps += [ap]
             print('AP for {} = {:.4f}'.format(cls, ap))
+            ap_per_class[cls] = ap
             with open(os.path.join(output_dir, 'eval_result.txt'), 'a') as result_f:
                 result_f.write('AP for {} = {:.4f}'.format(cls, ap) + '\n')
             with open(os.path.join(output_dir, cls + '_pr.pkl'), 'wb') as f:
                 pickle.dump({'rec': rec, 'prec': prec, 'ap': ap}, f)
         with open(os.path.join(output_dir, 'eval_result.txt'), 'a') as result_f:
             result_f.write('Mean AP = {:.4f}'.format(np.mean(aps)) + '\n')
-        print('Mean AP = {:.4f}'.format(np.mean(aps)))
-        print('~~~~~~~~')
-        print('Results:')
-        for ap in aps:
-            print('{:.3f}'.format(ap))
-        print('{:.3f}'.format(np.mean(aps)))
-        print('~~~~~~~~')
-        print('')
-        print('--------------------------------------------------------------')
-        print('Results computed with the **unofficial** Python eval code.')
-        print('Results should be very close to the official MATLAB eval code.')
-        print('Recompute with `./tools/reval.py --matlab ...` for your paper.')
-        print('-- Thanks, The Management')
-        print('--------------------------------------------------------------')
+
+        return np.mean(aps), ap_per_class
 
     def _do_matlab_eval(self, output_dir='output'):
         print('-----------------------------------------------------')
@@ -357,7 +367,7 @@ class pascal_voc(imdb):
 
     def evaluate_detections(self, all_boxes, output_dir):
         self._write_voc_results_file(all_boxes)
-        self._do_python_eval(output_dir)
+        map, ap_per_class = self._do_python_eval(output_dir)
         if self.config['matlab_eval']:
             self._do_matlab_eval(output_dir)
         if self.config['cleanup']:
@@ -366,6 +376,7 @@ class pascal_voc(imdb):
                     continue
                 filename = self._get_voc_results_file_template().format(cls)
                 os.remove(filename)
+        return map, ap_per_class
 
     def competition_mode(self, on):
         if on:

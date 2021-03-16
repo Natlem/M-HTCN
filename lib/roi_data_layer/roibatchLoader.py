@@ -18,7 +18,7 @@ import time
 import pdb
 
 class roibatchLoader(data.Dataset):
-  def __init__(self, roidb, ratio_list, ratio_index, batch_size, num_classes, training=True, normalize=None):
+  def __init__(self, roidb, ratio_list, ratio_index, batch_size, num_classes, training=True, normalize=True, is_bgr=True):
     self._roidb = roidb
     self._num_classes = num_classes
     # we make the height of image consistent to trim_height, trim_width
@@ -32,6 +32,7 @@ class roibatchLoader(data.Dataset):
     self.batch_size = batch_size
     self.data_size = len(self.ratio_list)
     self.target_num = -1
+    self.is_bgr= is_bgr
 
     # given the ratio_list, we want to make the ratio same for each batch.
     self.ratio_list_batch = torch.Tensor(self.data_size).zero_()
@@ -63,7 +64,7 @@ class roibatchLoader(data.Dataset):
     # here we set the anchor index to the last one
     # sample in this group
     minibatch_db = [self._roidb[index_ratio]]
-    blobs = get_minibatch(minibatch_db, self._num_classes)
+    blobs = get_minibatch(minibatch_db, self._num_classes, self.normalize, self.is_bgr)
     data = torch.from_numpy(blobs['data'])
     im_info = torch.from_numpy(blobs['im_info'])
     # we need to random shuffle the bounding box.

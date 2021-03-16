@@ -60,7 +60,7 @@ def exp_config():
     resume = False
     load_name = ""
 
-    eta = 0.1
+    eta = 1
     gamma = 3
     ef = False
     class_agnostic = False
@@ -132,7 +132,7 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             adjust_learning_rate(optimizer, lr_decay_gamma)
             lr *= lr_decay_gamma
 
-        total_step = frcnn_utils.train_htcn_one_epoch(args, FL, total_step, dataloader_s, dataloader_t, iters_per_epoch, fasterRCNN, optimizer, device, logger)
+        total_step = frcnn_utils.train_htcn_one_epoch(args, FL, total_step, dataloader_s, dataloader_t, iters_per_epoch, fasterRCNN, optimizer, device, eta, logger)
         if isinstance(val_datasets, list):
             avg_ap = 0
             for i, val_dataloader_t in enumerate(val_dataloader_ts):
@@ -170,19 +170,46 @@ def run_exp():
 if __name__ == "__main__":
 
     # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'dataset_source': "kitti_car_trainval",
-    #                        'dataset_target': ["cityscape_car", "watercolor_car"],
-    #                        'val_datasets': ["cityscape_car", "watercolor_car"],
-    #
+    #                        'net': 'res101',
+    #                        'lr': 0.001,
+    #                        'lr_decay_step': [5],
+    #                        'max_epochs': 7,
+    #                        'dataset_source': "voc_0712",
+    #                        'dataset_target': ["clipart", "watercolor", "comic"],
+    #                        'val_datasets': ["clipart", "watercolor", "comic"],
+    # 
     #                        },
-    #        options={"--name": 'htcn_rmixed_kitti_2_city_water_res50'})
+    #        options={"--name": 'htcn_rmixed_voc_2_clip_water_comic_res101'})
 
-    ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-                           'net': 'res50',
-                           'dataset_source':"wildtrack_C1",
-                           'dataset_target': ["wildtrack_C2", "wildtrack_C3", "wildtrack_C4", "wildtrack_C5", "wildtrack_C6", "wildtrack_C7"],
-                           'val_datasets': ["wildtrack_C2", "wildtrack_C3", "wildtrack_C4", "wildtrack_C5", "wildtrack_C6", "wildtrack_C7"],
+    ex.run(config_updates={'cfg_file': 'cfgs/vgg16.yml',
+                           'net': 'vgg16',
+                           'lr': 0.001,
+                           'lr_decay_step': [5],
+                           'max_epochs': 7,
+                           'dataset_source': "cs",
+                           'dataset_target': ["cs_fg", "cs_rain"],
+                           'val_datasets': ["cs_fg", "cs_rain"],
 
                            },
-           options={"--name": 'htcn_rmixed_wt_c1_2_rest_res50'})
+           options={"--name": 'htcn_rmixed_cs_2_cs_fg_cs_rain_vgg16_2975'})
+
+    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
+    #                        'net': 'res50',
+    #                        'lr': 0.001,
+    #                        'lr_decay_step': [5],
+    #                        'max_epochs': 7,
+    #                        'dataset_source': "voc_0712",
+    #                        'dataset_target': ["clipart", "watercolor"],
+    #                        'val_datasets': ["clipart", "watercolor"],
+    #
+    #                        },
+    #        options={"--name": 'htcn_rmixed_voc_2_clip_water_res50_lr_0.001'})
+
+    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
+    #                        'net': 'res50',
+    #                        'dataset_source':"wildtrack_C1",
+    #                        'dataset_target': ["wildtrack_C2", "wildtrack_C3", "wildtrack_C4", "wildtrack_C5", "wildtrack_C6", "wildtrack_C7"],
+    #                        'val_datasets': ["wildtrack_C2", "wildtrack_C3", "wildtrack_C4", "wildtrack_C5", "wildtrack_C6", "wildtrack_C7"],
+    #
+    #                        },
+    #        options={"--name": 'htcn_rmixed_wt_c1_2_rest_res50'})

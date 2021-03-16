@@ -14,6 +14,7 @@ from datasets.clipart import clipart
 from datasets.cityscape import cityscape
 from datasets.cityscape_car import cityscape_car
 from datasets.foggy_cityscape import foggy_cityscape
+from datasets.rain_cityscape import rain_cityscape
 from datasets.kitti_car import kitti_car
 from datasets.cityscape_watercolor_car import cityscape_watercolor_car
 from datasets.watercolor_car import watercolor_car
@@ -21,6 +22,7 @@ from datasets.watercolor import watercolor
 from datasets.comic import comic
 from datasets.clipart import clipart
 from datasets.wildtrack_c import wildtrack
+from datasets.bdd10k import bdd10k
 
 import numpy as np
 
@@ -37,14 +39,24 @@ for year in ['2007']:
     __sets[name] = (lambda split=split : clipart(split,year))
 
 for year in ['2007']:
-  for split in ['train', 'val', 'train_combine_fg', 'train_cg_fg']:
+  for split in ['train', 'val', 'trainval', 'train_combine_fg', 'train_cg_fg']:
     name = 'cs_{}_{}'.format(year, split)
     __sets[name] = (lambda split=split: cityscape(split, year))
 
 for year in ['2007']:
-  for split in ['train', 'val', 'train_combine','train_cg']:
+  for split in ['train', 'val', 'trainval', 'train_combine','train_cg']:
     name = 'cs_fg_{}_{}'.format(year, split)
     __sets[name] = (lambda split=split: foggy_cityscape(split, year))
+
+for year in ['2007']:
+  for split in ['train', 'val']:
+    name = 'bdd10k_{}_{}'.format(year, split)
+    __sets[name] = (lambda split=split: bdd10k(split, year))
+
+for year in ['2007']:
+  for split in ['train', 'val', 'train_combine','train_cg', 'trainreduced', 'valCtrain']:
+    name = 'cs_rain_{}_{}'.format(year, split)
+    __sets[name] = (lambda split=split: rain_cityscape(split, year))
 
 for year in ['2012']:
   for split in ['trainval', 'trainval_combine']:

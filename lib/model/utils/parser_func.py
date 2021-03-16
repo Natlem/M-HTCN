@@ -137,6 +137,9 @@ def set_dataset_args(args, test=False):
         elif args.dataset == "cs":
             args.imdb_name = "cs_2007_train"
             args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
+        elif args.dataset == "cs_tr":
+            args.imdb_name = "cs_2007_trainval"
+            args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
         elif args.dataset == "cs_combine_fg":
             args.imdb_name = "cs_2007_train_combine_fg"
             args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
@@ -148,6 +151,9 @@ def set_dataset_args(args, test=False):
             args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
         elif args.dataset == "cs_fg":
             args.imdb_name = "cs_fg_2007_train"
+            args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
+        elif args.dataset == "cs_rain":
+            args.imdb_name = "cs_rain_2007_trainreduced"
             args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
         elif args.dataset == "cs_car":
             args.imdb_name = "cs_car_2007_train"
@@ -183,6 +189,10 @@ def set_dataset_args(args, test=False):
                     i_d_t = "watercolor_2007_train"
                 elif d_t == "cs_fg":
                     i_d_t = "cs_fg_2007_train"
+                elif d_t == "bdd10k":
+                    i_d_t = "bdd10k_2007_train"
+                elif d_t == "cs_rain":
+                    i_d_t = "cs_rain_2007_trainreduced"
                 elif d_t == "cs_fg_combine":
                     i_d_t = "cs_fg_2007_train_combine"
                 elif d_t == "cs_car" or d_t == "cityscape_car":
@@ -216,6 +226,10 @@ def set_dataset_args(args, test=False):
                 args.imdb_name_target = "watercolor_2007_train"
             elif args.dataset_t == "cs_fg":
                 args.imdb_name_target = "cs_fg_2007_train"
+            elif args.dataset_t == "bdd10k":
+                args.imdb_name_target = "bdd10k_2007_train"
+            elif args.dataset_t == "cs_rain":
+                args.imdb_name_target = "cs_rain_2007_trainreduced"
             elif args.dataset_t == "cs_fg_combine":
                 args.imdb_name_target = "cs_fg_2007_train_combine"
             elif args.dataset_t == "cs_car" or args.dataset_t == "cityscape_car":
@@ -244,12 +258,24 @@ def set_dataset_args(args, test=False):
                     i_d_t = "inb_2007_trainval"
                 elif d_t == "clipart":
                     i_d_t = "clipart_2007_val"
+                elif d_t == "voc_0712":
+                    i_d_t = "voc_2007_val+voc_2012_val"
+                elif d_t == "voc_07":
+                    i_d_t = "voc_2007_val"
+                elif d_t == "voc_12":
+                    i_d_t = "voc_2012_val"
                 elif d_t == "comic":
                     i_d_t = "comic_2007_val"
                 elif d_t == "watercolor":
                     i_d_t = "watercolor_2007_val"
+                elif d_t == "cs":
+                    i_d_t = "cs_2007_val"
                 elif d_t == "cs_fg":
                     i_d_t = "cs_fg_2007_val"
+                elif d_t == "bdd10k":
+                    i_d_t = "bdd10k_2007_val"
+                elif d_t == "cs_rain":
+                    i_d_t = "cs_rain_2007_valCtrain"
                 elif d_t == "cs_fg_combine":
                     i_d_t = "cs_fg_2007_val"
                 elif d_t == "cs_car" or d_t == "cityscape_car":
@@ -281,14 +307,34 @@ def set_dataset_args(args, test=False):
             elif args.dataset_t == "clipart":
                 args.imdb_name_target = "clipart_2007_val"
                 args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
+            elif args.dataset_t == "voc_0712":
+                args.imdb_name_target = "voc_2007_val+voc_2012_val"
+                args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
+            elif args.dataset_t == "voc_07":
+                args.imdb_name_target = "voc_2007_val"
+                args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]',
+                                        'MAX_NUM_GT_BOXES', '20']
+            elif args.dataset_t == "voc_12":
+                args.imdb_name_target = "voc_2012_val"
+                args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]',
+                                        'MAX_NUM_GT_BOXES', '20']
             elif args.dataset_t == "comic":
                 args.imdb_name_target = "comic_2007_val"
                 args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
             elif args.dataset_t == "watercolor":
                 args.imdb_name_target = "watercolor_2007_val"
                 args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
+            elif args.dataset_t == "cs":
+                args.imdb_name_target = "cs_2007_val"
+                args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
             elif args.dataset_t == "cs_fg":
                 args.imdb_name_target = "cs_fg_2007_val"
+                args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
+            elif args.dataset_t == "bdd10k":
+                args.imdb_name_target = "bdd10k_2007_val"
+                args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
+            elif args.dataset_t == "cs_rain":
+                args.imdb_name_target = "cs_rain_2007_valCtrain"
                 args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '20']
             elif args.dataset_t == "cs_fg_combine":
                 args.imdb_name_target = "cs_fg_2007_val"
@@ -311,10 +357,6 @@ def set_dataset_args(args, test=False):
                                         '20']
             elif args.dataset_t == "kitti_car_val":
                 args.imdb_name_target = "kitti_car_2007_val"
-                args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES',
-                                        '20']
-            elif args.dataset_t == "voc_0712":
-                args.imdb_name_target = "voc_2012_val"
                 args.set_cfgs_target = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES',
                                         '20']
             elif args.dataset_t == "cityscape_watercolor_car":

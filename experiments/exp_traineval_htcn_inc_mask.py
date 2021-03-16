@@ -3,7 +3,7 @@ import os
 import frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
 from init_frcnn_utils import init_dataloaders_1s_1t, init_val_dataloaders_mt, init_val_dataloaders_1t, \
-    init_htcn_model_optimizer
+    init_htcn_model, init_optimizer
 
 vars = get_config_var()
 from sacred import Experiment
@@ -21,8 +21,6 @@ from dataclasses import dataclass
 import numpy as np
 
 import torch
-torch.backends.cudnn.benchmark = False
-torch.backends.cudnn.deterministic = True
 import torch.nn as nn
 
 from model.utils.config import cfg, cfg_from_file, cfg_from_list
@@ -33,6 +31,10 @@ from model.utils.parser_func import set_dataset_args
 
 import traineval_net_HTCN
 from typing import Any
+import dtm_util
+
+#torch.backends.cudnn.benchmark = False
+#torch.backends.cudnn.deterministic = True
 
 @ex.config
 def exp_config():
@@ -40,7 +42,7 @@ def exp_config():
 
     # config file
     cfg_file = "cfgs/res101.yml"
-    output_dir = "all_saves/htcn_single"
+    output_dir = "all_saves/htcn_inc_mask"
     dataset_source = "kitti_car_trainval"
     dataset_target = "cs_car"
     val_datasets = ["cs_car"]
@@ -58,6 +60,7 @@ def exp_config():
     lr_decay_gamma = 0.1
     lr_decay_step = [5]
 
+    mask_load_p = ""
     resume = False
     load_name = ""
     pretrained = True #Whether to use pytorch models (FAlse) or caffe model (True)
@@ -70,6 +73,7 @@ def exp_config():
     gc = True
     LA_ATT = True
     MID_ATT = True
+    alpha = 1
 
 
     debug = True
@@ -78,8 +82,8 @@ def exp_config():
 def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_datasets,
                     device, net, optimizer, num_workers,
                     lr, batch_size, start_epoch, max_epochs, lr_decay_gamma, lr_decay_step,
-                    resume, load_name, pretrained,
-                    eta, gamma, ef, class_agnostic, lc, gc, LA_ATT, MID_ATT,
+                    mask_load_p, resume, load_name, pretrained,
+                    eta, gamma, ef, class_agnostic, lc, gc, LA_ATT, MID_ATT, alpha,
                     debug, _run):
 
     args = Args(dataset=dataset_source, dataset_t=dataset_target, cfg_file=cfg_file, net=net)
@@ -114,11 +118,13 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
     val_dataloader_ts, val_imdb_ts = init_val_dataloaders_mt(args_val, 1, num_workers, is_bgr)
 
     session = 1
-    fasterRCNN, lr, optimizer, session, start_epoch, _ = init_htcn_model_optimizer(lr, LA_ATT, MID_ATT, class_agnostic, device, gc,
-                                                                                   imdb, lc, load_name, net, optimizer, resume,
-                                                                                   session, start_epoch, pretrained=pretrained, is_all_params=False)
-
-
+    fasterRCNN = init_htcn_model(LA_ATT, MID_ATT, class_agnostic, device, gc, imdb, lc, load_name, net, strict=False, pretrained=pretrained)
+    lr, optimizer, session, start_epoch = init_optimizer(lr, fasterRCNN, optimizer, resume, load_name, session, start_epoch, is_all_params=True)
+    #fasterRCNN.init_new_adv(device)
+    mask = torch.load(mask_load_p)
+    mask.to(device)
+    mask_dict = {}
+    mask_dict['clipart_mask'] = mask
 
     if torch.cuda.device_count() > 1:
         fasterRCNN = nn.DataParallel(fasterRCNN)
@@ -132,6 +138,17 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
 
     total_step = 0
     best_ap = 0.
+
+    if isinstance(val_datasets, list):
+        avg_ap = 0
+        for i, val_dataloader_t in enumerate(val_dataloader_ts):
+            map = frcnn_utils.eval_one_dataloader(output_dir, val_dataloader_t, fasterRCNN, device, val_imdb_ts[i])
+            logger.log_scalar("map on {}".format(val_datasets[i]), map, 0)
+            avg_ap += map / len(val_dataloader_ts)
+        logger.log_scalar("avg map on", avg_ap, total_step)
+        if avg_ap > best_ap:
+            best_ap = avg_ap
+
     for epoch in range(start_epoch, max_epochs + 1):
         # setting to train mode
         fasterRCNN.train()
@@ -140,7 +157,8 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             adjust_learning_rate(optimizer, lr_decay_gamma)
             lr *= lr_decay_gamma
 
-        total_step = frcnn_utils.train_htcn_one_epoch(args, FL, total_step, dataloader_s, dataloader_t, iters_per_epoch, fasterRCNN, optimizer, device, eta, logger)
+        total_step = dtm_util.train_htcn_one_epoch_ida_with_dtm(args, FL, total_step, dataloader_s, mask_dict, dataloader_t, iters_per_epoch, fasterRCNN, optimizer, device, eta, alpha, logger)
+
         if isinstance(val_datasets, list):
             avg_ap = 0
             for i, val_dataloader_t in enumerate(val_dataloader_ts):
@@ -152,9 +170,7 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
                 best_ap = avg_ap
                 save_best_name = "{}_best_map.p_ds_{}_2_dt_{}_on_{}".format(_run._id, dataset_source, dataset_target, net)
                 if torch.cuda.device_count() > 1:
-
                     torch.save(fasterRCNN.module, os.path.join())
-
 
         save_name = os.path.join(output_dir,
                                  'target_{}_eta_{}_local_{}_global_{}_gamma_{}_session_{}_epoch_{}_total_step_{}.pth'.format(
@@ -180,28 +196,20 @@ def run_exp():
 if __name__ == "__main__":
 
     ex.run(config_updates={'cfg_file': 'cfgs/vgg16.yml',
-                           'lr': 0.001,
-                           'lr_decay_step': [5],
+                           'lr': 0.0001,
+                           'lr_decay_step': [2],
                            'max_epochs': 7,
                            'net': 'vgg16',
                            'pretrained': True,
+                           'eta': 1,
+                           'alpha': 0.5,
+                           'mask_load_p': 'all_saves/htcn_train_mask_444/mask_target_cnn_444_60000.p',
+                           "load_name": "./all_saves/htcn_single_444/target_cs_fg_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth",
                            'dataset_source': 'cs',
-                           'dataset_target': 'cs_fg',
-                           'val_datasets': ['cs_fg']},
+                           'dataset_target': 'cs_rain',
+                           'val_datasets': ['cs_fg', 'cs_rain']},
 
-           options={"--name": 'htcn_inc_cs_2_cs_fg_vgg16_determinist'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/vgg16.yml',
-    #                        'lr': 0.001,
-    #                        'lr_decay_step': [5],
-    #                        'max_epochs': 7,
-    #                        'net': 'vgg16',
-    #                        'pretrained': True,
-    #                        'dataset_source': 'cs',
-    #                        'dataset_target': 'cs_fg',
-    #                        'val_datasets': ['cs_fg']},
-    #
-    #        options={"--name": 'htcn_cs_2_csfg_vgg16_mat'})
+           options={"--name": 'htcn_inc_mask_cs_2_fg_vgg16_60k_444_mask_da_0.5'})
 
     # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
     #                        'lr': 0.0001,
@@ -209,8 +217,46 @@ if __name__ == "__main__":
     #                        'max_epochs': 7,
     #                        'net': 'res50',
     #                        'pretrained': True,
+    #                        'alpha': 0.1,
+    #                        'mask_load_p': "all_saves/htcn_train_mask_472/mask_target_cnn_472_30000.p",
+    #                        'load_name': "./all_saves/htcn_inc_mask_472/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_3_total_step_30000.pth",
+    #                        'dataset_source': 'voc_0712',
+    #                        'dataset_target': 'comic',
+    #                        'val_datasets': ['clipart', 'watercolor', 'comic']},
+    #
+    #        options={"--name": 'htcn_abl_inc_mask_clipart_watercolor_2_comic_res50_30k_472_alpha_0.1'})
+
+    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
+    #                        'lr': 0.0001,
+    #                        'lr_decay_step': [5],
+    #                        'max_epochs': 7,
+    #                        'net': 'res50',
+    #                        'pretrained': True,
+    #                        'mask_load_p': "all_saves/htcn_train_mask_384/mask_target_cnn_384_10000.p",
+    #                        'load_name': "./all_saves/htcn_inc_mask_384/target_comic_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_1_total_step_10000.pth",
+    #                        'dataset_source': 'voc_0712',
+    #                        'dataset_target': 'clipart',
+    #                        'val_datasets': ['clipart','watercolor','comic']},
+    #
+    #        options={"--name": 'htcn_abl_inc_mask_watercolor_comic_2_clipart_res50_10k_384'})
+
+    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
+    #                        'lr': 0.0001,
+    #                        'lr_decay_step': [5],
+    #                        'max_epochs': 7,
+    #                        'net': 'res101',
+    #                        'pretrained': True,
+    #                        #'mask_load_p': 'all_saves/htcn_train_mask_208/mask_target_cnn.p',
+    #                        #'mask_load_p': 'all_saves/htcn_train_mask_206/mask_target_cnn_70000.p',
+    #                        'mask_load_p': "all_saves/htcn_train_mask_208/mask_target_cnn_208_40000.p",
+    #                        # 'mask_load_p': 'all_saves/htcn_train_mask_269/mask_target_cnn_clip_water_2_comic_40000.p',
+    #                        #'mask_load_p': 'all_saves/htcn_train_mask_269/mask_target_cnn_clip_water_2_comic_70000.p',
+    #                        #'load_name': "./all_saves/htcn_inc_mask_269/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth",
+    #                        'load_name': "./all_saves/htcn_single_208/target_clipart_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_4_total_step_40000.pth",
+    #                        #'load_name': "./all_saves/htcn_single_206/target_clipart_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth",
+    #                        #'load_name': './all_saves/htcn_single_208/target_clipart_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_10_total_step_100000.pth',
     #                        'dataset_source': 'voc_0712',
     #                        'dataset_target': 'watercolor',
-    #                        'val_datasets': ['watercolor']},
+    #                        'val_datasets': ['clipart', 'watercolor']},
     #
-    #        options={"--name": 'htcn_abl_voc_2_watercolor_res50'})
+    #        options={"--name": 'htcn_inc_mask_clipart_2_watercolor_res101_40k_208'})
