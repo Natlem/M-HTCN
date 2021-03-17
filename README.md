@@ -41,15 +41,15 @@ CUDA_VISIBLE_DEVICES=$GPU_ID \
        python experiments/exp_traineval_htcn.py
 ```
 If you want to do your own hyper-parameters, etc..., **exp_traineval_htcn.py** is fairly easy to understand to modify. We provided an example to modify this at the end.
-To train DTM for the next incremental step, you will have to change 'load_name' inside **exp_train_mask.py** to the model obtained from previous step:
+To train DTM for the next incremental step, you will have to change 'load_name' inside **exp_train_dtm.py** to the model obtained from previous step:
 ```
 CUDA_VISIBLE_DEVICES=$GPU_ID \
-       python experiments/exp_train_mask.py
+       python experiments/exp_train_dtm.py
 ```
-The next incremental domain adaptation, you will have to point 'mask_load_p' to the DTM model you just trained and 'load_name' the model obtained from the first domain adaptation inside **exp_traineval_htcn_inc_mask.py**:
+The next incremental domain adaptation, you will have to point 'dtm_load_p' to the DTM model you just trained and 'load_name' the model obtained from the first domain adaptation inside **exp_traineval_htcn_inc_ida_dtm.py**:
 ```
 CUDA_VISIBLE_DEVICES=$GPU_ID \
-       python experiments/exp_traineval_htcn_inc_mask.py
+       python experiments/exp_traineval_htcn_inc_ida_dtm.py
 ```
 
 Example of how to edit hyper-parameters etc... in **exp_traineval_htcn.py**.
