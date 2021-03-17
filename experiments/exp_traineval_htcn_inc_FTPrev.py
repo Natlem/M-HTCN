@@ -95,7 +95,7 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
         is_bgr = True
 
 
-    logger = LoggerForSacred(None, ex, False)
+    logger = LoggerForSacred(None, ex, True)
 
     if cfg_file is not None:
         cfg_from_file(cfg_file)

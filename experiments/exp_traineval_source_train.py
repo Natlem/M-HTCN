@@ -78,7 +78,7 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, val_datasets,
     args_val = set_dataset_args(args_val, test=True)
 
 
-    logger = LoggerForSacred(None, ex, False)
+    logger = LoggerForSacred(None, ex, True)
 
     if cfg_file is not None:
         cfg_from_file(cfg_file)
