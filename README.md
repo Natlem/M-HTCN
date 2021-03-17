@@ -9,6 +9,7 @@ Please follow [faster-rcnn](https://github.com/jwyang/faster-rcnn.pytorch/tree/p
  pip install sacred
  ```
  - To monitor the training, we used MongoObserver of Sacred with Omniboard. However, it is disabled by default. If you want to plug in your own monitoring. It can be done in **class LoggerForSacred** of **experiments/exp_utils.py** which will be called at every 100 iteration. By default, log are printed to stdout.
+ - All models are expected to be saved in *all_saves* folder in repo's root. This can be changed in the code.
 
 ## Datasets
 ### Datasets Preparation
