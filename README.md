@@ -97,4 +97,4 @@ CUDA_VISIBLE_DEVICES=$GPU_ID \
 
 - **VGG16 Model** of **Cityscape** -> **FoggyCityscape** -> **RainCityscape**(Overall mAP = 39.1): [Link](https://drive.google.com/file/d/1jx5oiUYAPWCxMnQn6sBlWDaDr2EmbxII/view?usp=sharing)
 - **ResNet50 Model** of **Pascal** -> **Clipart** -> **Watercolor**(Overall mAP = 39.8): [Link](https://drive.google.com/file/d/1nDp1bEPaDB-I5nBBjGc3TfPd5etKxVaJ/view?usp=sharing)
-- **ResNet50 Model** of **Pascal** -> **Clipart** -> **Watercolor**(Overall mAP = 38.1) -> **Comic**: [Link](https://drive.google.com/file/d/1R4FwIoD-mOJ8SS_awZfBgDlY6AZvN3ox/view?usp=sharing)
+- **ResNet50 Model** of **Pascal** -> **Clipart** -> **Watercolor** -> **Comic**(Overall mAP = 38.1): [Link](https://drive.google.com/file/d/1R4FwIoD-mOJ8SS_awZfBgDlY6AZvN3ox/view?usp=sharing)
