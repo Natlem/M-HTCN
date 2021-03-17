@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def get_mask_for_target(args, FL, total_step,
-                                       dataloader_s, m_dataloader_t, iters_per_epoch,
+                                       dataloader_s, iters_per_epoch,
                                        fasterRCNN, mask, optimizer, device, logger=None):
     loss_temp = 0
     loss_rpn_cls_temp = 0
@@ -318,7 +318,6 @@ def train_htcn_one_epoch_ida_with_dtm(args, FL, total_step,
     mloss_dict ={}
     for m_name, mask in masks_dict.items():
         mloss_dict[m_name] = {}
-        mloss_dict[m_name]['mask_sup_loss'] = 0
         mloss_dict[m_name]['mask_d_loss'] = 0
 
     count_step = 0

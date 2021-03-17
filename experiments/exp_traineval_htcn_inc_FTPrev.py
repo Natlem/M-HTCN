@@ -3,11 +3,13 @@ import os
 import frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
 
-vars = get_config_var()
+
 from sacred import Experiment
 ex = Experiment()
 from sacred.observers import MongoObserver
-if True:
+enable_mongo_observer = False
+if enable_mongo_observer:
+    vars = get_config_var()
     ex.observers.append(MongoObserver(url='mongodb://{}:{}@{}/admin?authMechanism=SCRAM-SHA-1'.format(vars["SACRED_USER"],
                                                                                                       vars["SACRED_PWD"],
                                                                                                       vars["SACRED_URL"]),
@@ -39,15 +41,15 @@ def exp_config():
     # Most of the hyper-parameters are already in the CFG here is in case we want to override
 
     # config file
-    cfg_file = "cfgs/res101.yml"
+    cfg_file = "cfgs/vgg16.yml"
     output_dir = "all_saves/htcn_inc"
-    dataset_source = "kitti_car_trainval"
-    dataset_target = "cs_car"
-    val_datasets = ["cs_car"]
+    dataset_source = "cs"
+    dataset_target = "cs_fg"
+    val_datasets = ["cs_fg"]
 
 
     device = "cuda"
-    net = "res101"
+    net = "vgg16"
     optimizer = "sgd"
     num_workers = 0
 
@@ -135,17 +137,8 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
     if resume:
         total_step = (start_epoch - 1) * 10000
 
-    best_ap = 0.
 
-    if isinstance(val_datasets, list):
-        avg_ap = 0
-        for i, val_dataloader_t in enumerate(val_dataloader_ts):
-            map = frcnn_utils.eval_one_dataloader(output_dir, val_dataloader_t, fasterRCNN, device, val_imdb_ts[i])
-            logger.log_scalar("map on {}".format(val_datasets[i]), map, total_step)
-            avg_ap += map / len(val_dataloader_ts)
-        logger.log_scalar("avg map on", avg_ap, total_step)
-        if avg_ap > best_ap:
-            best_ap = avg_ap
+
 
     for epoch in range(start_epoch, max_epochs + 1):
         # setting to train mode
@@ -156,18 +149,6 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             lr *= lr_decay_gamma
 
         total_step = inc_frcnn_utils.train_htcn_one_epoch_inc_union(args, FL, total_step, dataloader_s, m_dataloader_t, iters_per_epoch, fasterRCNN, optimizer, device, eta, logger)
-
-        if isinstance(val_datasets, list):# and epoch == max_epochs:
-            avg_ap = 0
-            for i, val_dataloader_t in enumerate(val_dataloader_ts):
-                map = frcnn_utils.eval_one_dataloader(output_dir, val_dataloader_t, fasterRCNN, device, val_imdb_ts[i])
-                logger.log_scalar("map on {}".format(val_datasets[i]), map, total_step)
-                avg_ap += map / len(val_dataloader_ts)
-            logger.log_scalar("avg map on", avg_ap, total_step)
-            if avg_ap > best_ap:
-                best_ap = avg_ap
-                save_best_name = "{}_best_map.p_ds_{}_2_dt_{}_on_{}".format(_run._id, dataset_source, dataset_target, net)
-
 
         save_name = os.path.join(output_dir,
                                  'target_{}_eta_{}_local_{}_global_{}_gamma_{}_session_{}_epoch_{}_total_step_{}.pth'.format(
@@ -183,7 +164,7 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             'pooling_mode': cfg.POOLING_MODE,
             'class_agnostic': class_agnostic,
         }, save_name)
-    return best_ap.item()
+    return 0
 
 
 @ex.main
@@ -199,29 +180,9 @@ if __name__ == "__main__":
                            'net': 'vgg16',
                            'eta': 1,
                            'pretrained': True,
-                           'resume': False,
-                           #'load_name': "./all_saves/htcn_inc_300/40000.pth",
-                           #'load_name': "./all_saves/htcn_single_206/target_clipart_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth",
-                           #'load_name': "./all_saves/htcn_inc_232/target_['clipart', 'watercolor']_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth",
-                           "load_name": "./all_saves/htcn_single_444/target_cs_fg_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth",
+                           "load_name": "path_to_previous_detection_model",
                            'dataset_source': 'cs',
                            'dataset_target': ['cs_fg', 'cs_rain'],
                            'val_datasets': ['cs_fg', 'cs_rain']},
 
-           options={"--name": 'htcn_union_targets_cs_cs_fg_2_rain_vgg16_60k_444k'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'lr': 0.0001,
-    #                        'lr_decay_step': [5],
-    #                        'max_epochs': 7,
-    #                        'net': 'res50',
-    #                        'pretrained': True,
-    #                        'resume': True,
-    #                        #'load_name': "./all_saves/htcn_inc_300/40000.pth",
-    #                        'load_name': "./all_saves/htcn_single_209/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth",
-    #                        #'load_name': "./all_saves/htcn_inc_232/target_['clipart', 'watercolor']_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth",
-    #                        'dataset_source': 'voc_0712',
-    #                        'dataset_target': ['watercolor', 'comic'],
-    #                        'val_datasets': ['watercolor', 'comic']},
-    #
-    #        options={"--name": 'htcn_union_targets_watercolor_2_comic_res50_60_209'})
+           options={"--name": 'htcn_FTPRev_targets_cs_cs_fg_2_rain_vgg16'})

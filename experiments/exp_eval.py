@@ -5,11 +5,11 @@ import distill_frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
 import init_frcnn_utils
 
-vars = get_config_var(is_eval=True)
+
 from sacred import Experiment
-ex = Experiment()
-from sacred.observers import MongoObserver
-if True:
+enable_mongo_observer = False
+if enable_mongo_observer:
+    vars = get_config_var(is_eval=True)
     ex.observers.append(MongoObserver(url='mongodb://{}:{}@{}/admin?authMechanism=SCRAM-SHA-1'.format(vars["SACRED_USER"],
                                                                                                       vars["SACRED_PWD"],
                                                                                                       vars["SACRED_URL"]),
@@ -155,135 +155,11 @@ def run_exp():
 
 if __name__ == "__main__":
 
-    # ex.run(config_updates={'cfg_file': 'cfgs/res101.yml',
-    #                        'net': 'vgg16',
-    #                        'model_type': 'htcn',
-    #                        'val_datasets': ['cs_fg', 'cs_rain'],
-    #                        'model_pth': "./all_saves/htcn_inc_mask_478/target_cs_rain_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth"
-    #                        },
-    #
-    #        options={"--name": 'htcn_inc_mask_cs_fg_rain_vgg16_eval_all_70k_478'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res101.yml',
-    #                        'net': 'vgg16',
-    #                        'val_datasets': ['cs_rain'],
-    #                        'model_pth': "./all_saves/htcn_single_401/target_cs_rain_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth"
-    #                        },
-    #
-    #        options={"--name": 'htcn_cs_2_csrain_vgg16_eval_rain_class_60k_401'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/vgg16.yml',
-    #                        'net': 'vgg16',
-    #                        'model_type': 'htcn',
-    #                        'val_datasets': ['cs_rain'],
-    #                        'model_pth': "./all_saves/htcn_mixed_359/target_['cs_fg', 'cs_rain']_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth"
-    #                        },
-    #
-    #        options={"--name": 'htcn_mixed_cs_fg_rain_eval_rain_70k_359_vgg16'})
-
-
-    ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-                           'net': 'res50',
-                           'val_datasets': ['clipart', 'watercolor', 'comic'],
-                           #'model_pth': "./all_saves/htcn_inc_mask_452/target_clipart_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_4_total_step_40000.pth"
-                           'model_pth': os.path.expanduser('~/unclean_pth/DTM_P_Cl_W_Co_clean.pth')
+    ex.run(config_updates={'cfg_file': 'cfgs/vgg16.yml',
+                           'net': 'vgg16',
+                           'model_type': 'htcn',
+                           'val_datasets': ['cs_fg', 'cs_rain'],
+                           'model_pth': "path_to_model"
                            },
 
-           options={"--name": 'htcn_clean_eval_test'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'model_type': 'htcn',
-    #                        'val_datasets': ['comic'],
-    #                        'model_pth': "./all_saves/htcn_mixed_211/target_['comic', 'clipart', 'watercolor']_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth"},
-    #
-    #        options={"--name": 'htcn_rmixed_eval_comic_70k_211'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'model_type': 'htcn',
-    #                        'val_datasets': ['comic'],
-    #                        'model_pth': "./all_saves/htcn_inc_mask_295/target_comic_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_1_total_step_10000.pth"},
-    #
-    #        options={"--name": 'htcn_voc_clipart_watercolor_2_comic_eval_comic_10k_295'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        model_type
-    #                        'val_datasets': ['clipart'],
-    #                        'model_pth': "./all_saves/htcn_inc_mask_289/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_5_total_step_50000.pth"},
-    #
-    #        options={"--name": 'htcn_voc_clipart_2_watercolor_eval_clipart_50k_289'})
-    #
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'model_type': 'normal',
-    #                        'val_datasets': ['watercolor'],
-    #                        'model_pth': './all_saves/frcnn_source_train_218/source_train_voc_0712_session_1_epoch_7_total_step_70000.pth'},
-    #
-    #        options={"--name": 'htcn_voc_2_voc_eval_watercolor_class_70k_218'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res101.yml',
-    #                        'net': 'res101',
-    #                        'model_type': 'normal',
-    #                        'val_datasets': ['clipart'],
-    #                        'model_pth': './all_saves/frcnn_source_train_255/source_train_voc_0712_session_1_epoch_2_total_step_20000.pth'},
-    #
-    #        options={"--name": 'htcn_voc_2_voc_eval_wcc_class_70k_255'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'val_datasets': ['comic'],
-    #                        'model_pth': "./all_saves/htcn_single_234/target_comic_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_3_total_step_30000.pth"},
-    #
-    #        options={"--name": 'htcn_inc_clipart_water2comic_eval_comic_class_30k_234'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res101.yml',
-    #                        'net': 'res101',
-    #                        'val_datasets': ['clipart'],
-    #                        'model_pth': './all_saves/htcn_single_258/target_clipart_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth'},
-    #
-    #        options={"--name": 'htcn_voc_2_clipart_eval_clipart_class_70k_258'})
-    #
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'val_datasets': ['watercolor'],
-    #                        'model_pth': './all_saves/htcn_single_209/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth'},
-    #
-    #        options={"--name": 'htcn_voc_2_watercolor_eval_watercolor_class_60k_209'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'val_datasets': ['comic'],
-    #                        'model_pth': './all_saves/htcn_single_215/target_comic_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_4_total_step_40000.pth'},
-    #
-    #        options={"--name": 'htcn_voc_2_comiceval_comic_class_40k_215'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'val_datasets': ['comic'],
-    #                        'model_pth': "./all_saves/htcn_single_229/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth"},
-    #
-    #        options={"--name": 'htcn_voc_clipart_2_watercolor_eval_comic_class_60k_229'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'val_datasets': ['watercolor'],
-    #                        'model_pth': "./all_saves/htcn_single_229/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_6_total_step_60000.pth"},
-    #
-    #        options={"--name": 'htcn_voc_clipart_2_watercolor_eval_watercolor_class_60k_229'})
-
-    #
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'val_datasets': ['watercolor'],
-    #                        'model_pth': './all_saves/htcn_single_209/target_watercolor_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth'},
-    #
-    #        options={"--name": 'htcn_voc_2_watercolor_eval_watercolor_class_70k'})
-    #
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'val_datasets': ['comic'],
-    #                        'model_pth': './all_saves/htcn_single_215/target_comic_eta_0.1_local_True_global_True_gamma_3_session_1_epoch_7_total_step_70000.pth'},
-    #
-    #        options={"--name": 'htcn_voc_2_comic_eval_comic_class_70k'})
+           options={"--name": 'htcn_mixed_cs_fg_rain_vgg16_eval_all'})

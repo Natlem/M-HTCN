@@ -4,11 +4,12 @@ import frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
 
 
-vars = get_config_var()
 from sacred import Experiment
 ex = Experiment()
 from sacred.observers import MongoObserver
-if True:
+enable_mongo_observer = False
+if enable_mongo_observer:
+    vars = get_config_var()
     ex.observers.append(MongoObserver(url='mongodb://{}:{}@{}/admin?authMechanism=SCRAM-SHA-1'.format(vars["SACRED_USER"],
                                                                                                       vars["SACRED_PWD"],
                                                                                                       vars["SACRED_URL"]),
@@ -36,17 +37,17 @@ def exp_config():
     # Most of the hyper-parameters are already in the CFG here is in case we want to override
 
     # config file
-    cfg_file = "cfgs/res101.yml"
+    cfg_file = "cfgs/vgg16.yml"
     output_dir = "all_saves/htcn_mixed"
-    dataset_source = "kitti_car_trainval"
-    dataset_target = ["watercolor_car", "cityscape_car"]
-    val_datasets = ["watercolor_car", "cityscape_car"]
+    dataset_source = "cs"
+    dataset_target = ["cs_fg", "cs_rain"]
+    val_datasets = ["cs_fg", "cs_rain"]
     # dataset_source = "voc_0712"
     # dataset_target = ["comic", "clipart", "watercolor"]
     # val_datasets = ["comic", "clipart", "watercolor"]
 
     device = "cuda"
-    net = "res50"
+    net = "vgg16"
     optimizer = "sgd"
     num_workers = 0
 
@@ -123,7 +124,7 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
         FL = FocalLoss(class_num=2, gamma=gamma)
 
     total_step = 0
-    best_ap = 0.
+
     for epoch in range(start_epoch, max_epochs + 1):
         # setting to train mode
         fasterRCNN.train()
@@ -133,18 +134,6 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             lr *= lr_decay_gamma
 
         total_step = frcnn_utils.train_htcn_one_epoch(args, FL, total_step, dataloader_s, dataloader_t, iters_per_epoch, fasterRCNN, optimizer, device, eta, logger)
-        if isinstance(val_datasets, list):
-            avg_ap = 0
-            for i, val_dataloader_t in enumerate(val_dataloader_ts):
-                map = frcnn_utils.eval_one_dataloader(output_dir, val_dataloader_t, fasterRCNN, device, val_imdb_ts[i])
-                logger.log_scalar("map on {}".format(val_datasets[i]), map, total_step)
-                avg_ap += map
-            avg_ap /= len(val_dataloader_ts)
-            logger.log_scalar("avg map on", avg_ap , total_step)
-            if avg_ap > best_ap:
-                best_ap = avg_ap
-
-
         save_name = os.path.join(output_dir,
                                  'target_{}_eta_{}_local_{}_global_{}_gamma_{}_session_{}_epoch_{}_total_step_{}.pth'.format(
                                      args.dataset_t, args.eta,
@@ -159,7 +148,7 @@ def exp_htcn_mixed(cfg_file, output_dir, dataset_source, dataset_target, val_dat
             'pooling_mode': cfg.POOLING_MODE,
             'class_agnostic': class_agnostic,
         }, save_name)
-    return best_ap.item()
+    return 0
 
 
 
@@ -168,18 +157,6 @@ def run_exp():
     return exp_htcn_mixed()
 
 if __name__ == "__main__":
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res101',
-    #                        'lr': 0.001,
-    #                        'lr_decay_step': [5],
-    #                        'max_epochs': 7,
-    #                        'dataset_source': "voc_0712",
-    #                        'dataset_target': ["clipart", "watercolor", "comic"],
-    #                        'val_datasets': ["clipart", "watercolor", "comic"],
-    # 
-    #                        },
-    #        options={"--name": 'htcn_rmixed_voc_2_clip_water_comic_res101'})
 
     ex.run(config_updates={'cfg_file': 'cfgs/vgg16.yml',
                            'net': 'vgg16',
@@ -191,25 +168,4 @@ if __name__ == "__main__":
                            'val_datasets': ["cs_fg", "cs_rain"],
 
                            },
-           options={"--name": 'htcn_rmixed_cs_2_cs_fg_cs_rain_vgg16_2975'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'lr': 0.001,
-    #                        'lr_decay_step': [5],
-    #                        'max_epochs': 7,
-    #                        'dataset_source': "voc_0712",
-    #                        'dataset_target': ["clipart", "watercolor"],
-    #                        'val_datasets': ["clipart", "watercolor"],
-    #
-    #                        },
-    #        options={"--name": 'htcn_rmixed_voc_2_clip_water_res50_lr_0.001'})
-
-    # ex.run(config_updates={'cfg_file': 'cfgs/res50.yml',
-    #                        'net': 'res50',
-    #                        'dataset_source':"wildtrack_C1",
-    #                        'dataset_target': ["wildtrack_C2", "wildtrack_C3", "wildtrack_C4", "wildtrack_C5", "wildtrack_C6", "wildtrack_C7"],
-    #                        'val_datasets': ["wildtrack_C2", "wildtrack_C3", "wildtrack_C4", "wildtrack_C5", "wildtrack_C6", "wildtrack_C7"],
-    #
-    #                        },
-    #        options={"--name": 'htcn_rmixed_wt_c1_2_rest_res50'})
+           options={"--name": 'htcn_mixed_cs_2_cs_fg_cs_rain_vgg16'})
