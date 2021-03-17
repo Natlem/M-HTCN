@@ -87,7 +87,7 @@ if __name__ == "__main__":
 ## Test
 
 Similar to training, modify **exp_eval.py** to evaluate a model.
-Edit 'val_datasets' for the dataset you want to test, it can be multiple datasets, 'model_pth' the path to the model:
+Edit 'val_datasets' for the dataset you want to test, it can be multiple datasets (it will return overall accuracy of all datasets on each class), 'model_pth' the path to the model:
 ```
 CUDA_VISIBLE_DEVICES=$GPU_ID \
        python experiments/exp_eval.py 
@@ -95,6 +95,6 @@ CUDA_VISIBLE_DEVICES=$GPU_ID \
 
 ### Trained Model
 
-- **Model** of **Cityscape** -> **FoggyCityscape** -> **RainCityscape**: [Link](https://drive.google.com/file/d/1jx5oiUYAPWCxMnQn6sBlWDaDr2EmbxII/view?usp=sharing)
-- **Model** of **Pascal** -> **Clipart** -> **Watercolor**: [Link](https://drive.google.com/file/d/1nDp1bEPaDB-I5nBBjGc3TfPd5etKxVaJ/view?usp=sharing)
-- **Model** of **Pascal** -> **Clipart** -> **Watercolor** -> **Comic**: [Link](https://drive.google.com/file/d/1R4FwIoD-mOJ8SS_awZfBgDlY6AZvN3ox/view?usp=sharing)
+- **VGG16 Model** of **Cityscape** -> **FoggyCityscape** -> **RainCityscape**(Overall mAP = 39.1): [Link](https://drive.google.com/file/d/1jx5oiUYAPWCxMnQn6sBlWDaDr2EmbxII/view?usp=sharing)
+- **ResNet50 Model** of **Pascal** -> **Clipart** -> **Watercolor**(Overall mAP = 39.8): [Link](https://drive.google.com/file/d/1nDp1bEPaDB-I5nBBjGc3TfPd5etKxVaJ/view?usp=sharing)
+- **ResNet50 Model** of **Pascal** -> **Clipart** -> **Watercolor**(Overall mAP = 38.1) -> **Comic**: [Link](https://drive.google.com/file/d/1R4FwIoD-mOJ8SS_awZfBgDlY6AZvN3ox/view?usp=sharing)
