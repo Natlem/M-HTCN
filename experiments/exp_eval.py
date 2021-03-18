@@ -8,6 +8,7 @@ import init_frcnn_utils
 
 from sacred import Experiment
 ex = Experiment()
+from sacred.observers import MongoObserver
 enable_mongo_observer = False
 if enable_mongo_observer:
     vars = get_config_var(is_eval=True)
@@ -163,4 +164,4 @@ if __name__ == "__main__":
                            'model_pth': "path_to_model"
                            },
 
-           options={"--name": 'htcn_mixed_cs_fg_rain_vgg16_eval_all'})
+           options={"--name": 'htcn_eval'})
