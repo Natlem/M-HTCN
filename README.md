@@ -1,4 +1,4 @@
-A Pytorch Implementation for ICCV submission 9456
+A Pytorch Implementation for Incremental Multi-Target Domain Adaptation for Object Detection with Efficient Domain Transfer
 
 ## Introduction
 Please follow [faster-rcnn](https://github.com/jwyang/faster-rcnn.pytorch/tree/pytorch-1.0) and [HTCN](https://github.com/chaoqichen/HTCN) respository to setup the environment. In this project, we use Pytorch 1.6.1 and CUDA version is 10.2
