@@ -11,7 +11,6 @@ from model.utils.config import cfg
 from model.utils.net_utils import sampler
 from roi_data_layer.roibatchLoader import roibatchLoader
 from roi_data_layer.roidb import combined_roidb
-from distiller import Distiller
 import os
 
 def init_dataloaders_1s_1t(args, batch_size, num_workers, is_bgr=True, is_train=True):

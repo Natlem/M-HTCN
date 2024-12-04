@@ -1,7 +1,4 @@
-import os
-
 import frcnn_utils
-import distill_frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
 import init_frcnn_utils
 
@@ -18,27 +15,20 @@ if enable_mongo_observer:
                                       db_name=vars["SACRED_DB"]))
     ex.captured_out_filter = lambda text: 'Output capturing turned off.'
 
-from dataclasses import dataclass
-
 import numpy as np
 
 import torch
-import torch.nn as nn
 
 from model.utils.config import cfg, cfg_from_file, cfg_from_list
-from model.utils.net_utils import adjust_learning_rate, save_checkpoint, FocalLoss, EFocalLoss
 
 from model.faster_rcnn.resnet import resnet as n_resnet
 from model.faster_rcnn.resnet_saito import resnet as s_resnet
 from model.faster_rcnn.resnet_HTCN import resnet as htcn_resnet
 from model.faster_rcnn.vgg16 import vgg16 as n_vgg16
 from model.faster_rcnn.vgg16_HTCN import vgg16 as htcn_vgg16
-from model.faster_rcnn.vgg16_HTCN_mrpn import vgg16 as vgg16_mrpn
 
 from model.utils.parser_func import set_dataset_args
 
-import traineval_net_HTCN
-from typing import Any
 
 @ex.config
 def exp_config():

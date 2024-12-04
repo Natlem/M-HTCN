@@ -16,8 +16,6 @@ if enable_mongo_observer:
                                       db_name=vars["SACRED_DB"]))
     ex.captured_out_filter = lambda text: 'Output capturing turned off.'
 
-from dataclasses import dataclass
-
 import numpy as np
 
 import torch
@@ -28,8 +26,7 @@ from model.utils.net_utils import adjust_learning_rate, save_checkpoint, FocalLo
 
 
 from model.utils.parser_func import set_dataset_args
-from init_frcnn_utils import init_dataloaders_1s_1t, init_dataloaders_1s_mixed_mt, init_val_dataloaders_mt, \
-    init_val_dataloaders_1t, init_htcn_model_optimizer
+from init_frcnn_utils import init_dataloaders_1s_mixed_mt, init_val_dataloaders_mt, init_htcn_model_optimizer
 
 
 @ex.config

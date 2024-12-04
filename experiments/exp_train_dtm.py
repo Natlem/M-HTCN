@@ -1,10 +1,8 @@
 import os
 
 import dtm_util
-import frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
-from init_frcnn_utils import init_dataloaders_1s_1t, init_val_dataloaders_mt, init_val_dataloaders_1t, \
-    init_htcn_model, init_optimizer, init_dataloaders_1s_mt
+from init_frcnn_utils import  init_htcn_model, init_dataloaders_1s_mt
 
 
 from sacred import Experiment
@@ -19,21 +17,16 @@ if enable_mongo_observer:
                                       db_name=vars["SACRED_DB"]))
     ex.captured_out_filter = lambda text: 'Output capturing turned off.'
 
-from dataclasses import dataclass
-
 import numpy as np
 
 import torch
 import torch.nn as nn
 
 from model.utils.config import cfg, cfg_from_file, cfg_from_list
-from model.utils.net_utils import adjust_learning_rate, save_checkpoint, FocalLoss, EFocalLoss
+from model.utils.net_utils import FocalLoss, EFocalLoss
 
 
 from model.utils.parser_func import set_dataset_args
-import inc_frcnn_utils
-import traineval_net_HTCN
-from typing import Any
 import re
 
 @ex.config

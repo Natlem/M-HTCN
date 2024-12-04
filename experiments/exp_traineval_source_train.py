@@ -3,8 +3,7 @@ import os
 import frcnn_utils
 import init_frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
-from init_frcnn_utils import init_dataloaders_1s_1t, init_val_dataloaders_mt, init_val_dataloaders_1t, \
-    init_htcn_model_optimizer
+from init_frcnn_utils import init_dataloaders_1s_1t, init_val_dataloaders_mt
 
 from sacred import Experiment
 ex = Experiment()
@@ -31,8 +30,6 @@ from model.utils.net_utils import adjust_learning_rate, save_checkpoint, FocalLo
 
 from model.utils.parser_func import set_dataset_args
 
-import traineval_net_HTCN
-from typing import Any
 
 @ex.config
 def exp_config():

@@ -1,6 +1,5 @@
 import os
 
-import frcnn_utils
 from experiments.exp_utils import get_config_var, LoggerForSacred, Args
 
 
